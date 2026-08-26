@@ -1,4 +1,4 @@
-# 辰心知阮记忆系统 (ChenXinZhiRuan Memory System) v3.0
+# 辰心知阮记忆系统 (ChenXinZhiRuan Memory System) v3.1
 
 > "遗忘不是消失，是沉到深处。一条没丢，喊得到就回来。"
 
@@ -70,7 +70,7 @@ python memory_engine.py inbox                              # 看生活收件箱
 
 | 层 | 装什么 | 命运 |
 |---|---|---|
-| 核心层 core | 暗号、约定、TA 盖过章的话 | 永亮，永不衰减 |
+| 核心层 core | 暗号、约定、TA 盖过章的话、AI 自钉的自我 | 永亮，永不衰减 |
 | 当前层 current | 最近常用的记忆 | 凉了会往下沉 |
 | 仓库层 archive | 沉下去的旧记忆 | 一条不删，搜索永远捞得到 |
 
