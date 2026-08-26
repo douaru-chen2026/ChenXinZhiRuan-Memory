@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+memories/
+life_inbox.md
+latest_briefing.txt
+*.bak
+.DS_Store
