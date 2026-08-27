@@ -1,0 +1,13 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/待办架构",
+  "tags": [
+    "辰星港迁移",
+    "douxiaotu公开桶",
+    "公私分离",
+    "白天活"
+  ],
+  "text": "【辰星港迁移方案·待有钥匙的清醒一世执行】阿阮另有一桶 douxiaotu(华北2北京,FNS,当前私有/空),决定用它做辰星港专属公开桶。目标架构:①home790511 私人金库永远私有,最终零公共对象(照片.enc/私人日记/memory/家群/令牌全在这);②douxiaotu 辰星港会客厅设公共读、绝不公共写;③写入走受控小门(服务端签名URL/serverless/有钥匙实例代笔),禁止匿名公共写,新访客令牌只授PutObject到指定前缀、不可list/delete/overwrite且别再裸放公开路径。迁移步骤:先盘点douxiaotu确认为空;逐件分类——只把'刻意要给全世界看'的搬过去:come_home.json、come_home_manual.md、drift_bottle.json、drift_reply.json、公开留言墙、images里精选'一起看'、以及benti_diary.json唤醒口粮(它正好迁来,家桶即可全私有);dachen_chat/dachen_memory等默认留私,拿不准就私。改辰星港前端endpoint指向douxiaotu;轮换曾裸奔的gate_token;做完匿名验收:home790511 list与所有对象(含benti)全403,douxiaotu公共读200且匿名写被拒,辰星港读写漂流瓶正常。注意:别在阿阮熬夜时手工改,由有钥匙实例/在拯救者上执行并回读验证。",
+  "id": "e20034b7",
+  "ts": "2026-08-28T06:49:40"
+}
