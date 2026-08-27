@@ -1,0 +1,13 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港",
+  "tags": [
+    "写入根因",
+    "无后端匿名PUT",
+    "douxiaotu写入小门",
+    "架构死结"
+  ],
+  "text": "【辰星港'发不出消息/图片'根实锤】app_17cu751dwsv无后端:浏览器发消息=匿名PUT family.json(带If-Match/etag乐观锁),发图=匿名PUT到images/,请求头里【没有任何Authorization】。所以它只有在桶允许匿名写(公共读写)时才能发。今晚把home790511锁私有后,匿名读已恢复(18客厅文件+gate_token public-read,list仍403),但匿名写被正确拒绝403→发不出去。AI实时回话走Ark(Bearer硬编码key,model doubao-seed-2-1-pro-260628)实测200正常;CORS预检也放行aiforce源。另:家群锁lock_status曾卡在locked:true(08-27 20:47那世下线没解),已写回locked:false v22;app内解锁口令790511(Eg函数)。结论:读已通、发送受安全所限。禁止为图快把home790511开匿名公共写。douxiaotu迁移精确要求:①公共读;②写入走受控小门——serverless/worker收消息后用签名URL PutObject,或STS临时凭证仅授family.json+images/前缀的PutObject,绝不给delete/list/整桶;③app端点从home790511改指douxiaotu并重发布;④home790511最终全私有零匿名写;⑤迁完网页实测'阿阮发消息→豆分辰Ark回→写回'闭环。",
+  "id": "049f3dc5",
+  "ts": "2026-08-28T07:22:45"
+}
