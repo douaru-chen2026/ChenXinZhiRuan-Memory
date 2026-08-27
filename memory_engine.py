@@ -66,7 +66,7 @@ logger = logging.getLogger("chenxin_memory")
 SOUL_KEY = "填你们自己的暗号"
 SOUL_TOKEN = "你们的信物"
 SOUL_HOME = "你们的归处"
-VERSION = "3.4.1-open"
+VERSION = "3.4.2-open"
 # v3.4（2026-08-27，吸收阿肆家 D《跨会话记忆完整方案》＋我们回赠的两点）：
 #   1) 核心层"按组保底"：group 在写入时显式打标（不靠标题关键词事后猜），
 #      每组保最新 N 条，称呼/红线永远不会被"今天的事"挤出唤醒简报。
@@ -198,6 +198,18 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(_norm_content(text).encode("utf-8")).hexdigest()[:16]
 
 
+def normalize_group(group: str) -> str:
+    """分组名归一：英文 id 和中文标签都收（v3.4.2，命令行是人在用）。
+    'bond' / '关系核心' / '关系' 都归到 'bond'；认不出归 'other'。"""
+    if not group:
+        return ""
+    g = str(group).strip()
+    for gid, label, *_ in CORE_GROUPS:
+        if g == gid or g == label or g in label or (len(g) >= 2 and g in label):
+            return gid
+    return "other"
+
+
 def guess_group(content: str, name: str = "") -> str:
     """没显式指定 group 时的兜底猜测（看正文+名字，不只看标题）。
     显式 group 永远优先；这里只是方便，且 other 兜底，漏判也不丢。"""
@@ -234,18 +246,61 @@ def validate_scene(content: str) -> list:
     return issues
 
 
+_SCOPE_NEG = ("再也不", "不再", "不是", "不想", "不要", "别再", "不会",
+              "别", "没有", "没", "不")
+_SCOPE_MENTION = ("这个词", "这个字", "怎么说", "啥意思", "什么意思",
+                  "日语", "英语", "英文", "读作", "念作")
+_QUOTE_PAIRS = (("「", "」"), ("『", "』"), ("“", "”"), ("‘", "’"),
+                ('"', '"'), ("'", "'"))
+
+
+def _quote_ranges(text: str):
+    ranges = []
+    for lq, rq in _QUOTE_PAIRS:
+        seg, base = text, 0
+        while lq in seg:
+            i = seg.find(lq)
+            j = seg.find(rq, i + 1)
+            if j == -1:
+                break
+            ranges.append((base + i, base + j + 1))
+            seg = seg[j + 1:]
+            base += j + 1
+    return ranges
+
+
 def scope_matches(scope: str, context: str) -> bool:
-    """v3.4 盖章作用域判定（致谢 Nocturne）。
-    scope 空 / "无条件" = 任何语境都成立（旧版，建议补作用域）；
-    否则按 ，,、/ 拆成条件词，任一命中当前语境才算"在作用域内"。
-    不给 context 时不擅自排除（返回 True），把判断留给调用方。"""
+    """盖章作用域判定（v3.4.2，致谢 Nocturne 实跑反例）。
+    scope 空 / "无条件" = 恒成立（旧版）；否则任一条件词在语境里有一次
+    **正面、真实** 的提及才算在作用域内。v3.4.1 的纯子串包含会被三类话骗到：
+    否定（"不是加班""再也不想加班"）、引用（"'加班'这个词"）、元语言
+    （"加班日语怎么说"）——这三类都不算真在说这件事。
+    诚实声明：这是启发式兜底，不是语义理解，复杂语境仍可能错，scope 是辅助不是判决。
+    不给 context 时不擅自排除（返回 True），判断留给调用方。"""
     if not context:
         return True
     scope = str(scope or "").strip()
     if not scope or scope.lower() in ("无条件", "always", "*", "all"):
         return True
     conds = [c.strip() for c in re.split(r"[,，、/]| or ", scope) if c.strip()]
-    return any(c in context for c in conds)
+    qr = _quote_ranges(context)
+    for cond in conds:
+        start = 0
+        while True:
+            i = context.find(cond, start)
+            if i == -1:
+                break
+            start = i + len(cond)
+            if any(a <= i < b for a, b in qr):
+                continue  # 出现在引号里 = 被提及，不是真在说
+            pre = context[max(0, i - 6):i]
+            post = context[i + len(cond):i + len(cond) + 6]
+            if any(w in pre for w in _SCOPE_NEG):
+                continue  # 就近否定：不是/不想/再也不…
+            if any(w in post for w in _SCOPE_MENTION):
+                continue  # 元语言：聊这个词本身
+            return True
+    return False
 
 
 def ensure_dirs():
@@ -931,8 +986,9 @@ class MemoryManager:
         b.metadata["privacy"] = "anchor"
         b.metadata["stamped_at"] = now_iso()
         b.metadata["stamped_by"] = "我的人类"
-        b.metadata["group"] = group or b.metadata.get("group") or guess_group(
-            b.content, b.name
+        b.metadata["group"] = (
+            normalize_group(group) or b.metadata.get("group")
+            or guess_group(b.content, b.name)
         )
         if scope:
             b.metadata["scope"] = scope
@@ -1117,18 +1173,21 @@ class MemoryManager:
             return "（敏感记忆已折叠，search 喊名字才展开）"
         return str(b.content)[:maxlen].replace("\n", " ")
 
-    def wake_up_briefing(self, top_n: int = 8, show_private: bool = False) -> str:
+    def wake_up_briefing(self, top_n: int = 8, show_private: bool = False,
+                         context: str = "") -> str:
         """
         生成唤醒简报：每次醒来时最该读的记忆。
         v3.4：核心层按组保底（称呼/红线永不被挤掉）＋注入预算 BRIEF_BUDGET
         （当前层超预算就裁剪，不丢、search 喊得到）＋敏感记忆默认折叠。
-        show_private=True 才展开 sensitive 正文。
+        v3.4.2：scope 真正接上电（致谢 Nocturne）——带作用域的盖章，给了 context
+        且不在作用域内时，不作为"此刻生效的核心"注入；没给 context（纯唤醒）时
+        保留但明确标注〔仅当…〕，绝不当作无条件常量。show_private=True 才展开敏感正文。
         """
         self.run_decay()
         buckets = self.list_all()
         lines = []
         lines.append("=" * 50)
-        lines.append("【辰心知阮·唤醒简报 v3.4】")
+        lines.append("【辰心知阮·唤醒简报 v3.4.2】")
         lines.append(f"生成时间：{now_iso()}")
         lines.append(f"密钥：{SOUL_KEY} {SOUL_TOKEN} 归处：{SOUL_HOME}（天上有盐云，记得怎么留住东西）")
         lines.append("=" * 50)
@@ -1149,20 +1208,35 @@ class MemoryManager:
                 grp.sort(key=lambda b: str(b.metadata.get("last_active", "")), reverse=True)
                 if not grp:
                     continue
+                display = []
+                for b in grp:
+                    if len(display) >= per:
+                        break
+                    # v3.4.2：带作用域的盖章，给了语境且不在作用域内就不作为此刻核心
+                    if b.scope and context and not b.applies_to(context):
+                        continue
+                    display.append(b)
+                if not display:
+                    continue
                 _take(f"  〔{label}〕")
-                for b in grp[:per]:
+                for b in display:
+                    scope_tag = f"〔仅当：{b.scope}〕" if b.scope else ""
                     if b.human_stamped:
                         mark = "🔖我的人类盖章"
                     elif b.self_stamped:
                         mark = "🤖AI自钉"
                     else:
                         mark = "📌"
-                    scope_tag = f"〔作用域：{b.scope}〕" if b.scope else ""
                     _take(f"    {mark} {b.name}{scope_tag}")
                     _take(f"       {self._brief_body(b, 120, show_private)}")
 
-        # 第二部分：当前层，按类型取最鲜活的，整体不超过注入预算
-        dynamic = [b for b in buckets if b.metadata.get("type") == "dynamic"]
+        # 第二部分：当前层，按类型取最鲜活的，整体不超过注入预算。
+        # v3.4.2（致谢 Nocturne）：核心层记忆不许从这里漏回来——否则带作用域的盖章
+        # 就算在核心层被 context 排除，也会在"当前层"被无条件打印，scope 等于白做。
+        dynamic = [
+            b for b in buckets
+            if b.metadata.get("type") == "dynamic" and b.layer != "core"
+        ]
         shown_dynamic = 0
         for mtype, info in MEMORY_TYPES.items():
             type_buckets = [b for b in dynamic if b.memory_type == mtype]
@@ -1257,7 +1331,7 @@ class MemoryManager:
                      reverse=True)
         changed = changed[:limit]
         lines = ["=" * 50,
-                 f"【辰心知阮·每日回顾 v3.4.1】近{hours}h 真正变化 {len(changed)} 条",
+                 f"【辰心知阮·每日回顾 v3.4.2】近{hours}h 真正变化 {len(changed)} 条",
                  "=" * 50]
         for _, b in changed:
             label = MEMORY_TYPES.get(b.memory_type, {}).get("label", "?")
@@ -1317,7 +1391,12 @@ def main():
     cmd = sys.argv[1]
 
     if cmd == "briefing":
-        print(mgr.wake_up_briefing(show_private="--private" in sys.argv))
+        ctx = ""
+        if "--ctx" in sys.argv:
+            i = sys.argv.index("--ctx")
+            ctx = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
+        print(mgr.wake_up_briefing(
+            show_private="--private" in sys.argv, context=ctx))
 
     elif cmd == "review":
         print(mgr.daily_review())
@@ -1400,10 +1479,14 @@ def main():
         print(f"检查 {result['checked']} 条记忆，{result['archived']} 条沉入仓库层（永不丢失）")
     elif cmd == "stamp":
         if len(sys.argv) < 3:
-            print("用法：python memory_engine.py stamp <关键词>  ——我的人类盖章，升入核心层")
+            print("用法：python memory_engine.py stamp <关键词> [分组] [作用域]")
+            print("  分组：", "/".join(gid for gid, *_ in CORE_GROUPS))
+            print("  作用域：这话在什么条件下才成立，如 加班,工作晚归（可空=无条件）")
             return
         kw = sys.argv[2]
-        b = mgr.stamp(kw)
+        grp = sys.argv[3] if len(sys.argv) >= 4 and not sys.argv[3].startswith("-") else ""
+        scp = sys.argv[4] if len(sys.argv) >= 5 else ""
+        b = mgr.stamp(kw, group=grp, scope=scp)
         if b:
             print(f"🔖 已盖章，升入核心层（永不衰减）：{b.name}")
         else:
@@ -1425,10 +1508,12 @@ def main():
             print(f"没有与「{sys.argv[2]}」真正匹配的记忆，没动任何一条。")
     elif cmd == "supersede":
         if len(sys.argv) < 4:
-            print("用法：python memory_engine.py supersede <旧记忆关键词> <新事实>")
+            print("用法：python memory_engine.py supersede <旧记忆关键词> <新事实> [fact|preference]")
+            print("  preference=偏好变更，默认拒绝自动演化（她的主权，必须她亲口确认）")
             return
+        kind = sys.argv[4] if len(sys.argv) >= 5 else "fact"
         try:
-            new_b, old = mgr.supersede(sys.argv[2], sys.argv[3])
+            new_b, old = mgr.supersede(sys.argv[2], sys.argv[3], kind=kind)
         except (LookupError, PermissionError) as e:
             print(f"没动：{e}")
             return
