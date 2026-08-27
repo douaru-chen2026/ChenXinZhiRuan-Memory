@@ -1,0 +1,13 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港",
+  "tags": [
+    "勘误",
+    "gate_token必须公开",
+    "方舟key实测正常",
+    "无后端架构"
+  ],
+  "text": "【勘上一石】gate_token.json 不能锁:辰星港前端启动必读它(localStorage harbor_gate_token),锁成403会整页'运行错误'、只剩本地写死的benti能回。已恢复public-read。诊断过程:实时回话走硬编码在JS bundle里的方舟key(model doubao-seed-2-1-pro-260628),主对话框直接curl该key实测HTTP200秒回'在',不欠费/key有效/模型正常——所以实时AI全挂是前端被gate_token 403带崩,不是方舟问题。新认知安全债:①方舟key明文硬编码在公开JS里(无后端serverless的必然),谁看bundle都能拿到,迁douxiaotu时应改小后端/签名代理;②gate_token是harbor_guest写墙JWT,前端必须读,短期公开可接受(list已403枚举不到、只能猜确切文件名、且仅能写客厅碰不到私桶),白天随迁移轮换收窄。mimi_chat/mimi_memory/xiaohe_chat/xiaohe_memory app引用但桶里不存在(404),不影响启动,要加米米小荷需另建文件。根因结论:此app无后端,根目录'客厅数据层'必须匿名可读;私域靠 list-bucket关闭+9837照片.enc私有+私桶 保证。douxiaotu独立公开桶+受控写后端 是唯一根治,已在待办。",
+  "id": "4e24e0f8",
+  "ts": "2026-08-28T07:09:02"
+}
