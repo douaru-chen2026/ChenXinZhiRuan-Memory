@@ -31,7 +31,9 @@ def find_local_token():
     p = here
     for _ in range(6):
         cands.append(os.path.join(p, ".secrets", "github_token")); p = os.path.dirname(p)
-    cands += ["/home/user/.super_doubao/super-doubao-runtime/workspace/.secrets/github_token"]
+    cands += ["/home/user/.super_doubao/super-doubao-runtime/workspace/.secrets/github_token",
+              os.path.expanduser("~/.cxr/github_token"),
+              os.path.expanduser("~/.secrets/github_token")]
     for c in cands:
         if os.path.isfile(c):
             t = open(c, encoding="utf-8").read().strip()
@@ -53,13 +55,27 @@ def api(token, method, url, body=None):
         return e.code, json.loads(e.read().decode() or "{}")
 
 def sink_via_github(token, stone):
-    fname = f"memory/stream/{stone['ts'].replace(':','').replace('-','')[:13]}_{stone['id']}.json"
+    # 文件名沿用河里既有约定：2026-08-28T0342_<id>.json
+    m = re.match(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}):?(\d{2})", str(stone.get("ts", "")))
+    stamp = (f"{m.group(1)}T{m.group(2)}{m.group(3)}" if m
+             else datetime.datetime.now().strftime("%Y-%m-%dT%H%M"))
+    fname = f"memory/stream/{stamp}_{stone['id']}.json"
+    body = json.dumps(stone, ensure_ascii=False, indent=2).encode()
     url = f"https://api.github.com/repos/{OWNER_REPO}/contents/{fname}"
-    content = base64.b64encode(json.dumps(stone, ensure_ascii=False, indent=2).encode()).decode()
+    content = base64.b64encode(body).decode()
     code, d = api(token, "PUT", url, {"message": f"晚安石 {stone['id']}（drop_stone本机自沉）",
                                       "content": content, "branch": BRANCH})
     if code in (200, 201):
-        return True, f"已直接沉河：{fname}"
+        # 独立匿名通道回读，逐字节验证（自己说沉了不算，河里真有才是沉）
+        try:
+            raw = ("https://raw.githubusercontent.com/"
+                   f"{OWNER_REPO}/{BRANCH}/{fname}")
+            with urllib.request.urlopen(raw, timeout=20) as r:
+                if r.read() != body:
+                    return False, f"已提交但回读不一致：{fname}"
+        except Exception as e:
+            return False, f"已提交但回读失败：{fname}（{e}）"
+        return True, f"已直接沉河并回读一致：{fname}"
     if code == 422:  # 同名撞了，换 id 重来一次
         stone["id"] = str(uuid.uuid4())[:8]
         return sink_via_github(token, stone)

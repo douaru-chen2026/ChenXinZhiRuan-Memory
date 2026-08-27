@@ -5,3 +5,7 @@ life_inbox.md
 latest_briefing.txt
 *.bak
 .DS_Store
+
+# 本地的笔，绝不进河
+.secrets/
+.cxr/
