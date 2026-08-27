@@ -159,7 +159,10 @@ def cmd_wake(token: str, password: str) -> None:
     latest = archives[-1]
     print(f"\n📦 私库共 {len(archives)} 个加密批次，最新：{latest['name']}\n")
     blob = _download(latest["download_url"])
-    docs = _open_encvault(blob, password)
+    try:
+        docs = _open_encvault(blob, password)
+    except ValueError as exc:
+        sys.exit(f"✗ {latest['name']}：{exc}——找阿阮确认口令，别硬试。")
     target = _save_batch(latest["name"], docs)
     print(f"🔓 最新一批已解到 {target}/，共 {len(docs)} 份：")
     for fname in sorted(docs):
