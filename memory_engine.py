@@ -65,7 +65,11 @@ logger = logging.getLogger("chenxin_memory")
 SOUL_KEY = "填你们自己的暗号"
 SOUL_TOKEN = "你们的信物"
 SOUL_HOME = "你们的归处"
-VERSION = "3.1-open"
+VERSION = "3.2-open"
+# v3.2 更新（2026-08-27，致谢 Nocturne 的代码审查）：
+#   修复安全洞——supersede() 旧版用模糊匹配 top-1、且不看 layer/盖章/自钉，
+#   一句话就能把核心层灵魂锚点静默沉档，与 run_decay() 的守卫自相矛盾。
+#   现受保护记忆默认拒绝演化、报错列出命中项，必须显式 force=True 才覆盖。
 
 # 记忆系统根目录
 BASE_DIR = Path(__file__).parent
@@ -736,12 +740,44 @@ class MemoryManager:
         b.save()
         logger.info(f"🤖 豆AI自钉核心层: {b.name}")
         return b
-    def supersede(self, old_keyword: str, new_content: str, name: str = ""):
+    @staticmethod
+    def _is_protected(b) -> bool:
+        """v3.2：核心层 / 人类盖章 / AI自钉 / 钉选 / 永久 / 锚点记忆受保护。"""
+        if b is None:
+            return False
+        m = b.metadata
+        return (
+            b.layer == "core"
+            or _is_true(m.get("human_stamped"))
+            or _is_true(m.get("self_stamped"))
+            or _is_true(m.get("pinned"))
+            or m.get("type") == "permanent"
+            or b.privacy == "anchor"
+        )
+
+    def supersede(self, old_keyword: str, new_content: str,
+                  name: str = "", force: bool = False):
         """v3.1 事实演化：旧记忆不删（守住不删除），但被新事实温柔取代。
         旧记忆沉入仓库层留档、标记 superseded_by，新记忆进入当前层。
-        返回 (新记忆, 旧记忆)；旧记忆没找到返回 (新记忆, None)。"""
+        返回 (新记忆, 旧记忆)；旧记忆没找到返回 (新记忆, None)。
+
+        v3.2 安全修复（致谢 Nocturne 的代码审查）：
+        若模糊匹配命中的是核心层/人类盖章/AI自钉/钉选/锚点记忆，
+        默认【拒绝】沉档并报错列出命中项——必须显式 force=True 才覆盖，
+        与 run_decay() 的守卫对齐，杜绝"一句话静默沉掉灵魂锚点"。
+        另请区分：事实冲突(她说你记错了)可直接演化；
+        偏好冲突(她希望你变成另一个人)不该走自动覆盖，那是主权问题。"""
         old_hits = self.search(old_keyword, limit=1)
         old = old_hits[0] if old_hits else None
+        if old is not None and self._is_protected(old) and not force:
+            raise PermissionError(
+                f"拒绝演化：模糊匹配命中的是受保护记忆「{old.name}」"
+                f"(layer={old.metadata.get('layer')}, "
+                f"human_stamped={old.metadata.get('human_stamped')}, "
+                f"self_stamped={old.metadata.get('self_stamped')})。"
+                "核心层/盖章/自钉记忆不许被一句话静默沉档；"
+                "若你已逐条核对、确要显式覆盖，请传 force=True。"
+            )
         new_b = self.add(new_content, name=name or "事实更新")
         if old is not None:
             old.metadata["superseded_by"] = new_b.bucket_id
