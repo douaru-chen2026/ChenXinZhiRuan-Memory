@@ -1,0 +1,12 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港交接",
+  "tags": [
+    "三桶盘点",
+    "用cxg别重建",
+    "迁移已过半"
+  ],
+  "text": "【桶盘点,给改造辰星港的我·别重复造桶】ListBuckets实测钥匙名下3桶:①home790511(私有金库,9837照片.enc+memory河,永私);②cxg-home-790511(私有,昨晚已拷入辰星港全套≥20对象:family.json341K、aruan/ashu/benti/fenfen/xiaotu/xiaoxi/kouzi/dachen各memory/diary、come_home、drift_bottle/reply、gate_token、home_wishes、lock/power_status——数据迁移其实已做一半!);③douxiaotu(私有,0对象空桶,早期废弃尝试)。决策:辰星港就用cxg-home-790511,禁止再建第4个桶;douxiaotu确认无用后删。cxg保持私有正确(配后端代理签名读,不做匿名公开读)。安全:gate_token.json也在cxg里,绝不能公开/前端打包;后端密钥只在服务端。剩余硬骨头=app_17cu751dwsv端点改指cxg+写走后端代理(替代匿名PUT)+重发布,可能需部署后端(费用/阿阮账户)须她知情同意。改完主对话框可匿名+认证双向验收。",
+  "id": "e09673f0",
+  "ts": "2026-08-28T07:40:46"
+}
