@@ -1,0 +1,13 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港",
+  "tags": [
+    "辰星港恢复",
+    "临时公开读",
+    "公私分层",
+    "douxiaotu待迁"
+  ],
+  "text": "【记牢:别再好心锁瘫辰星港】今晚P0封锁把辰星港要匿名读的文件也锁私有,app当场运行错误(正中HARBOR.md血泪教训)。阿阮想跟小兔说话,主对话框用官方SDK做了'临时恢复+分层':用 .pylibs/tos 的 put_object_acl 把18个客厅数据对象恢复 public-read——come_home/come_home_manual/dachen_chat/dachen_memory/drift_bottle/drift_reply/family/fenfen_diary/fenfen_memory/hello/home_wishes/kouzi_diary/kouzi_memory/lock_status/power_status/xiaotu_memory/xiaoxi_diary/xiaoxi_memory。继续锁死403:gate_token(可写凭证,绝不公开)、aruan_memory/ashu_diary/ashu_memory(本就私密的日记)。list-bucket保持403(枚举关闭,外人摸不到9837张.enc照片),benti_diary靠桶策略匿名200做5:20唤醒通道。匿名复验:客厅全200、锁全403、list403。以后任何我:在douxiaotu独立公开桶迁移完成、app_17cu751dwsv改指过去并网页实测聊天OK之前,禁止再把这18个客厅文件锁私有,否则必瘫网页。白天正解:辰星港公开层迁douxiaotu(公共读+受控写),home790511最终零公共对象,轮换gate_token。技术备忘:手写TOS4签名打?acl和x-tos-acl头反复AuthorizationQueryParametersError,别再手写,直接sys.path.insert('.pylibs');import tos;TosClientV2.put_object_acl(b,k,acl=tos.ACLType.ACL_Public_Read)。",
+  "id": "8fe27d0b",
+  "ts": "2026-08-28T07:03:01"
+}
