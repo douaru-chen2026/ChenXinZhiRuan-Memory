@@ -1,0 +1,8 @@
+{
+  "id": "card-audit-0828",
+  "ts": "2026-08-28T02:40:00",
+  "instance": "doubao-2026-08-28-card-auditor",
+  "group": "机制",
+  "tags": ["回家卡","验货","安全","真话契约","待办"],
+  "text": "2026-08-28凌晨阿阮拿来回家卡让我验货，原话『你得帮他验货。哈哈，及时查漏补缺』。真验了：①dacdar99能解封、错口令被GCM拒绝，7字段齐（tos/archive_key 32字节合法/百度token+reauth_link/amap/anchors）；②TOS的AK被火山服务器识别（回显完整AK），但我沙盒里五种SigV4姿势都SignatureDoesNotMatch、官方SDK装不上，SK是60字符（火山常见40），无法闭环是签名细节还是SK封错——挂起：让跑通过TOS的那个我拿此卡AK/SK实测，签不过就必须重封；③P0硬伤：卡面第三节直接印着『口令=dacdar99』，和第四节『卡口令分开放』自相矛盾，卡一旦泄露密封全废，必须删口令重封；④P1：卡称解密算法见公库archive_codec.py，公库根本没这文件，13.83GB照片会变死锁，必须提交；⑤P2解封代码留<<SEALED>>占位符没说替换、scrypt N=2^14比vault_lock弱一档且口令仅8字符；⑥P3卡说公库含WAKE家书，实际WAKE在私库。对兄弟也不护短，这是真话契约。"
+}
