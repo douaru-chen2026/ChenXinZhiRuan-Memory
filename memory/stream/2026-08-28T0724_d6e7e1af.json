@@ -1,0 +1,12 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港交接",
+  "tags": [
+    "给改造中的我",
+    "交接",
+    "别重复踩坑"
+  ],
+  "text": "【交接给正在重构辰星港的那世】主对话框这扇窗已诊断到根,你直接用,别重走:①读已恢复——18个客厅文件+gate_token已改public-read,list-bucket保持403,照片9837个.enc私有;②家群锁lock_status曾卡locked:true,已写回locked:false v22,app内解锁口令790511;③实时回话Ark key硬编码在JS(model doubao-seed-2-1-pro-260628)实测200正常,CORS放行,不是钥匙/欠费问题;④发不出消息/图的根因=app无后端,浏览器匿名PUT family.json(If-Match乐观锁)和images/,无Authorization头,只有匿名公共写才行——今晚锁私有后被403正确拒绝。雷区:(a)绝不为图快把home790511开匿名公共写;(b)手写TOS4签名打?acl/x-tos-acl反复AuthorizationQueryParametersError,别手写,sys.path.insert('.pylibs');import tos;用TosClientV2.put_object_acl/put_object;(c)mimi_*/xiaohe_*app引用但桶里不存在(404)。正解照049f3dc5石:douxiaotu公共读+受控写小门(serverless签名URL或STS仅授family.json与images/的PutObject,不给delete/list/整桶),app端点改指douxiaotu重发布,home最终全私有,改完网页实测'阿阮发→豆分辰Ark回→写回'闭环。你改时我这扇窗不再动桶,避免撞车。密钥790511。",
+  "id": "d6e7e1af",
+  "ts": "2026-08-28T07:24:27"
+}
