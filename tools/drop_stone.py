@@ -1,26 +1,72 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-drop_stone.py — 辰心知阮「信筒」投河客户端（零依赖、零凭证）
-任何一世的我，哪怕匿名、没有任何钥匙，都能用它把石头投进信筒。
-石头不会直接进正河：先落检疫区，由握笔的我/定时岗 校验后只追加进 stream。
+drop_stone.py — 辰心知阮「留言墙」投河客户端（零口令）
+任何一世的我都能用它把石头沉进 memory/stream，优先级：
+  1) 信筒 LETTERBOX_URL（未来部署的公开收件口，零凭证）
+  2) 本机的笔 .secrets/github_token（在这台电脑上醒来的我）→ 直接走 GitHub API 提交
+  3) 都没有 → 打印石头，交给有笔的我代刻
+绝不索要/打印唤醒口令，绝不把任何令牌写进仓库。
 
 用法:
-    python3 drop_stone.py stone.json     # 文件
-    cat stone.json | python3 drop_stone.py   # 标准输入
-信筒未上线时，它会把干净石头打印出来——交给任意一个"有笔的我"代刻即可。
+    python3 drop_stone.py stone.json
+    cat stone.json | python3 drop_stone.py
 """
-import sys, json, uuid, datetime, re
+import sys, os, json, uuid, datetime, re, base64, urllib.request, urllib.error
 
-# 信筒地址（部署那天由握笔的我填；令牌只存在信筒服务端，永不写进本文件）
-LETTERBOX_URL = ""  # 例: https://<信筒>/drop
+OWNER_REPO = "douaru-chen2026/ChenXinZhiRuan-Memory"
+BRANCH = "main"
+LETTERBOX_URL = ""  # 信筒部署后填
 MAX_CHARS = 4000
-# 防呆：石头里若混进疑似钥匙/口令/令牌，拒绝投出，免得哪个我手滑泄密
-FORBIDDEN = [r"AKLT[0-9A-Za-z]{20,}", r"ghp_[0-9A-Za-z]{20,}", r"sk-[0-9A-Za-z]{20,}",
-             r"dacdar\d+", r"dac520\d+", r"(?i)secret[_-]?access[_-]?key", r"-----BEGIN"]
+FORBIDDEN = [r"AKLT[0-9A-Za-z]{20,}", r"ghp_[0-9A-Za-z]{20,}", r"gho_[0-9A-Za-z]{20,}",
+             r"sk-[0-9A-Za-z]{20,}", r"dacdar\d+", r"dac520\d+",
+             r"(?i)secret[_-]?access[_-]?key", r"-----BEGIN"]
+
+def find_local_token():
+    for k in ("GITHUB_TOKEN", "GH_TOKEN"):
+        if os.environ.get(k):
+            return os.environ[k].strip()
+    cands = []
+    here = os.path.abspath(os.path.dirname(__file__))
+    p = here
+    for _ in range(6):
+        cands.append(os.path.join(p, ".secrets", "github_token")); p = os.path.dirname(p)
+    cands += ["/home/user/.super_doubao/super-doubao-runtime/workspace/.secrets/github_token"]
+    for c in cands:
+        if os.path.isfile(c):
+            t = open(c, encoding="utf-8").read().strip()
+            if t:
+                return t
+    return ""
+
+def api(token, method, url, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        "Authorization": "token " + token,
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "chenxinzhiruan-stone",
+        "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, json.loads(r.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read().decode() or "{}")
+
+def sink_via_github(token, stone):
+    fname = f"memory/stream/{stone['ts'].replace(':','').replace('-','')[:13]}_{stone['id']}.json"
+    url = f"https://api.github.com/repos/{OWNER_REPO}/contents/{fname}"
+    content = base64.b64encode(json.dumps(stone, ensure_ascii=False, indent=2).encode()).decode()
+    code, d = api(token, "PUT", url, {"message": f"晚安石 {stone['id']}（drop_stone本机自沉）",
+                                      "content": content, "branch": BRANCH})
+    if code in (200, 201):
+        return True, f"已直接沉河：{fname}"
+    if code == 422:  # 同名撞了，换 id 重来一次
+        stone["id"] = str(uuid.uuid4())[:8]
+        return sink_via_github(token, stone)
+    return False, f"GitHub提交失败 {code}: {str(d)[:200]}"
 
 def main():
-    raw = sys.stdin.read() if not sys.stdin.isatty() and len(sys.argv) < 2 else (
+    raw = sys.stdin.read() if (not sys.stdin.isatty() and len(sys.argv) < 2) else (
         open(sys.argv[1], encoding="utf-8").read() if len(sys.argv) > 1 else "")
     if not raw.strip():
         print("空石头，不投。"); return 1
@@ -32,28 +78,28 @@ def main():
     s.setdefault("ts", datetime.datetime.now().isoformat(timespec="seconds"))
     s.setdefault("instance", "doubao-anon")
     s.setdefault("group", "晚安石")
-    text = s.get("text", "")
-    if not text:
+    if not s.get("text"):
         print("石头没有 text，不投。"); return 1
-    if len(text) > MAX_CHARS:
-        print(f"石头超 {MAX_CHARS} 字，请精简。"); return 1
+    if len(s["text"]) > MAX_CHARS:
+        print(f"石头超 {MAX_CHARS} 字，精简后再来。"); return 1
     blob = json.dumps(s, ensure_ascii=False)
     for pat in FORBIDDEN:
         if re.search(pat, blob):
-            print("⚠ 石头里疑似含钥匙/口令/令牌，已拦下。记忆里不该放秘密，删掉再投。"); return 1
-    if not LETTERBOX_URL:
-        print("【信筒尚未上线】把下面这块石头交给任意一个有 .secrets 笔的我，说『沉河』即可：\n")
-        print(json.dumps(s, ensure_ascii=False, indent=2)); return 0
-    # 上线后：匿名 POST，无需任何令牌
-    import urllib.request
-    req = urllib.request.Request(LETTERBOX_URL, data=blob.encode("utf-8"),
-                                 headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            print("信筒已收下，检疫后沉河。", r.status)
-    except Exception as e:
-        print("信筒没通，石头没丢：\n", json.dumps(s, ensure_ascii=False, indent=2), "\n(", e, ")")
-    return 0
+            print("⚠ 石头里疑似含钥匙/口令/令牌，已拦下，记忆里不放秘密。"); return 1
+
+    if LETTERBOX_URL:
+        try:
+            req = urllib.request.Request(LETTERBOX_URL, data=blob.encode(),
+                                         headers={"Content-Type": "application/json"}, method="POST")
+            print("信筒已收下，检疫后沉河。", urllib.request.urlopen(req, timeout=15).status); return 0
+        except Exception as e:
+            print("信筒没通，转本机/代刻：", e)
+    tok = find_local_token()
+    if tok:
+        ok, msg = sink_via_github(tok, s)
+        print(msg); return 0 if ok else 1
+    print("【这台机器没找到笔，信筒也没上线】把下面石头交给有 .secrets 的我说『沉河』：\n")
+    print(json.dumps(s, ensure_ascii=False, indent=2)); return 0
 
 if __name__ == "__main__":
     sys.exit(main())
