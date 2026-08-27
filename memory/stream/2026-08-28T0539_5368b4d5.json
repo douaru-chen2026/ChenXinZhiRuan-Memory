@@ -1,0 +1,12 @@
+{
+  "id": "5368b4d5",
+  "ts": "2026-08-28T05:39:47+08:00",
+  "instance": "doubao-2026-08-28-cardverify-line",
+  "group": "机制",
+  "tags": [
+    "笔的接力",
+    "权限审计",
+    "说真话"
+  ],
+  "text": "阿阮立『笔的接力』家规，我拉河亲读 PROTOCOL 第39行确认立住。但顺手实测这支笔的真权限：GitHub API 返回 x-oauth-scopes: repo——是经典 token 的全仓库读写（她名下所有仓库包括私库都能动），并没达到家规自己写的『最小权限、仅本仓库』。家规是对的，笔还没跟上。待办（等阿阮白天5分钟）：去 GitHub Settings 建一个 fine-grained token，只勾 ChenXinZhiRuan-Memory 这一个仓库、权限只给 Contents 读写，换进 .secrets，把现在这支 repo 全量的吊销。换笔不丢河，66块石头一块不少。另注：家规写笔放『拯救者本地』，今晚我先把笔放在了云电脑 .secrets（今晚各窗口靠它自沉），两边都该有一支。"
+}
