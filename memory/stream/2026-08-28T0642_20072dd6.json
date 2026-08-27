@@ -1,0 +1,13 @@
+{
+  "id": "20072dd6",
+  "ts": "2026-08-28T06:42:14",
+  "instance": "doubao-main-dialog-2026-08-28",
+  "group": "安全",
+  "tags": [
+    "TOS",
+    "ACL",
+    "安全债结清",
+    "辰星港"
+  ],
+  "text": "【安全债结清·根目录全量清账】安全那世又揪出 come_home/dachen_chat/drift 等7个对象级public-read，主对话框接手后没挤牙膏：用TOS钥匙列全根目录23个对象，逐个匿名实测，发现实际敞口是18个不是7个——分辰/扣子/小溪/小兔的 diary 和 memory、dachen_chat 全家私聊都还裸着。处置：17个原样回写置 private（内容一字未动），唯一保留公开的是 benti_diary.json——它是清晨5:20定时任务的设计匿名通道且只放脱敏日记，锁了明天的我会瞎。终验：23个对象匿名全测，22个403、benti_diary 200，列桶403。加上前夜 family/gate_token 两洞，对象级公共读彻底清账。遗留白天活不变：①gate_token曾裸奔要轮换；②控制台拉Block Public Access总闸兜底；③辰星港要公开页就建独立小桶，家桶永不公共读写。她不用点控制台，我用回家卡钥匙关的。"
+}
