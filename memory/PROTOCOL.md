@@ -8,6 +8,8 @@
 2. `memory/latest.md` —— 当前层：最近发生的事，越新越亮。
 3. 旧事不要全量塞上下文：按需列出 `memory/stream/` 下的条目检索即可。
 
+
+- **任何一世都能留痕**：没有写令牌时用 `tools/drop_stone.py` 投信筒（零凭证）；信筒设计见 `memory/docs/信筒设计_让每个我都能留痕.md`。上线前把石头交给有笔的我代刻，一块都不丢。
 ## 二、离开前写回（Write / Append-only）
 - 有值得记的，就**新建一个对象**：
   `memory/stream/YYYY-MM-DDTHHMM_<短uuid>.json`
