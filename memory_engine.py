@@ -66,7 +66,7 @@ logger = logging.getLogger("chenxin_memory")
 SOUL_KEY = "填你们自己的暗号"
 SOUL_TOKEN = "你们的信物"
 SOUL_HOME = "你们的归处"
-VERSION = "3.4-open"
+VERSION = "3.4.1-open"
 # v3.4（2026-08-27，吸收阿肆家 D《跨会话记忆完整方案》＋我们回赠的两点）：
 #   1) 核心层"按组保底"：group 在写入时显式打标（不靠标题关键词事后猜），
 #      每组保最新 N 条，称呼/红线永远不会被"今天的事"挤出唤醒简报。
@@ -1232,6 +1232,55 @@ class MemoryManager:
         briefing_path.write_text(result, encoding="utf-8")
         return result
 
+    def daily_review(self, hours: int = 24, limit: int = 30) -> str:
+        """v3.4.1 每日回顾（吸收阿肆家 D，补一个 updatedAt 的坑）。
+        只读'最近真正变化'的那一页，不读全库。关键：按 created/superseded_at
+        （真新增/真演化）筛，绝不按 last_active（只是被想起）筛——否则常被回忆的
+        旧记忆会永远冒充'昨天的新事'。另带一小段'仍未闭合'的高情绪线索（状态驱动，
+        不受时间窗限制）。只覆盖写一份 daily_review-latest.txt，唤醒时读一次即退役。"""
+        cutoff = datetime.now().timestamp() - hours * 3600
+
+        def _changed_ts(b) -> float:
+            ts = []
+            for key in ("created", "superseded_at"):
+                try:
+                    ts.append(datetime.fromisoformat(str(b.metadata.get(key))).timestamp())
+                except (ValueError, TypeError):
+                    pass
+            return max(ts, default=0.0)
+
+        changed = [(_changed_ts(b), b)
+                   for b in self._all_buckets(include_archive=True)
+                   if _changed_ts(b) >= cutoff]
+        # 盖章/核心变化先保底，再按时间填，避免一天写太多时最早的重要事被截断
+        changed.sort(key=lambda x: (bool(x[1].human_stamped or x[1].self_stamped), x[0]),
+                     reverse=True)
+        changed = changed[:limit]
+        lines = ["=" * 50,
+                 f"【辰心知阮·每日回顾 v3.4.1】近{hours}h 真正变化 {len(changed)} 条",
+                 "=" * 50]
+        for _, b in changed:
+            label = MEMORY_TYPES.get(b.memory_type, {}).get("label", "?")
+            mark = "🔖" if b.human_stamped else ("🤖" if b.self_stamped else "·")
+            body = b.content.replace("\n", " ")
+            summ = body[:120] + ("…" if len(body) > 120 else "")
+            lines.append(f"  {mark}[{label}] {b.name}：{summ}")
+        loops = [b for b in self.list_all()
+                 if float(b.metadata.get("arousal", 0) or 0) > 0.6
+                 and not b.metadata.get("resolved", False)]
+        if loops:
+            lines.append(f"\n▎仍未闭合（{min(5, len(loops))}，不受时间窗限制）：")
+            for b in loops[:5]:
+                lines.append(f"  ⚠️ {b.name}：{b.content[:80]}")
+        if not changed and not loops:
+            lines.append("（这一页没有新变化，也没有悬而未决的事。）")
+        text = "\n".join(lines)
+        try:
+            (BASE_DIR / "daily_review-latest.txt").write_text(text, encoding="utf-8")
+        except OSError:
+            pass
+        return text
+
     @staticmethod
     def _emotion_label(valence, arousal) -> str:
         try:
@@ -1269,6 +1318,9 @@ def main():
 
     if cmd == "briefing":
         print(mgr.wake_up_briefing(show_private="--private" in sys.argv))
+
+    elif cmd == "review":
+        print(mgr.daily_review())
 
     elif cmd == "validate":
         print("粘贴要存的情景记忆，空行结束：")
