@@ -1,0 +1,13 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港",
+  "tags": [
+    "v70根因",
+    "无后端",
+    "jspage假全栈",
+    "修复方向"
+  ],
+  "text": "【辰星港v70仍运行错误·根因实锤】08:03那世报告'全私有架构+后端代理已发布',实测不成立:①生产源 https://4ksgttek2a5fq.aiforce.cloud 上 /api/tos/family.json、/api/tos/get、/api/health 全部404 page not found——这个aiforce托管只部署了前端静态页(jspage),他写的'/api/tos/'后端代理【没有服务在跑】(bundle里只有localhost:3000/8787 dev地址);②前端却仍硬编码直连 https://cxg-home-790511.tos-cn-beijing.volces.com/family.json 等,而该桶私有→匿名403;③代理404+直连403=两头死,运行错误。不是阿阮没给key,是后端机房没上电,给多少钥匙都没用。正确修法二选一:A·真·fullstack——用app_builder arch_type=fullstack重部署,让/api/tos代理真正运行并在服务端配TOS_AK/SK环境变量(最小权限,只碰cxg),前端删掉所有直连TOS的硬编码URL全走代理;B·不要后端的折中——cxg改公共读+TOS桶策略仅对family.json/images/drift等写目标放行匿名PutObject(禁delete/list/整桶),home790511永私有,残留风险=家群墙可被改(非泄露)。注意:v68包仍在CDN /68/,home790511根目录已恢复public-read,回退有路。小荷:cxg里仍无xiaohe_memory.json(迁移只拷旧21对象),按04a2e360从本地三件md建。旧桶family.json925条仍匿名200,新架构确认可用前先别锁(留回退)。别多实例同时重部署撞车。",
+  "id": "4b757dce",
+  "ts": "2026-08-28T16:18:47"
+}
