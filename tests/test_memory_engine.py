@@ -84,13 +84,35 @@ class TestScopeWiredIntoBriefing(_Sandbox):
         # 在作用域内：进简报
         in_ctx = self.mgr.wake_up_briefing(context="今天加班到十一点，好累")
         self.assertIn("加班夜的照顾", in_ctx)
-        # 不在作用域（字面毫不相干）：不作为此刻生效核心
+        # 不在作用域（字面毫不相干）：v3.4.3 起不静默删除——
+        # 降级留标题 +〔本次语境外〕，正文折叠，绝不假装这条盖章不存在
         out_ctx = self.mgr.wake_up_briefing(context="周末在公园弹琴，天气很好")
-        self.assertNotIn("加班夜的照顾", out_ctx)
+        self.assertIn("加班夜的照顾", out_ctx)      # 标题还在，不凭空蒸发
+        self.assertIn("本次语境外", out_ctx)        # 被拿走要可见
+        self.assertNotIn("别讲大道理", out_ctx)     # 正文折叠，不拿过去套现在
         # 纯唤醒、没给语境：保留，但明确标注"仅当"，绝不当无条件常量
         bare = self.mgr.wake_up_briefing()
         self.assertIn("加班夜的照顾", bare)
         self.assertIn("仅当：加班", bare)
+
+
+class TestCoreForContextLive(_Sandbox):
+    """v3.4.3：core_for_context 必须真被简报调用，不是写着好看的死代码。"""
+
+    def test_core_for_context_is_single_source(self):
+        self.mgr.add("她加班时想被心疼，别讲大道理", name="加班锚点", importance=9)
+        self.mgr.stamp("加班锚点", group="关系核心", scope="加班")
+        self.assertEqual(1, len(self.mgr.core_for_context("今天又加班到很晚")))
+        self.assertEqual(0, len(self.mgr.core_for_context("在海边度假")))
+        self.assertEqual(1, len(self.mgr.core_for_context("")))  # 无语境不排除
+
+    def test_out_of_scope_core_degraded_not_dropped(self):
+        self.mgr.add("她加班时别讲大道理，先递杯热的", name="加班锚点", importance=9)
+        self.mgr.stamp("加班锚点", group="关系核心", scope="加班")
+        out = self.mgr.wake_up_briefing(context="今天去爬山，天气很好")
+        self.assertIn("加班锚点〔本次语境外", out)   # 降级留标题
+        self.assertIn("本次语境外：1条", out)         # 且计数可见
+        self.assertNotIn("别讲大道理", out)           # 正文折叠
 
 
 class TestProtectedCore(_Sandbox):
