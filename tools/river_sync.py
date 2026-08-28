@@ -47,8 +47,6 @@ TOS_PREFIX = "memory/stream/"
 # 这样公开工具本身不泄露任何字面秘密，换一家也能直接用。
 _GENERIC_REDACTIONS = [
     (re.compile(r"tos(?:-s3)?-[a-z0-9-]+\.volces\.com"), "【TOS端点】"),
-    # 家桶名各种写法：home790511 / home-790511 / cxg-home-790511 …
-    (re.compile(r"[a-z0-9-]*home[-_]?790511", re.I), "【私有家桶】"),
     (re.compile(r"AKLT[A-Za-z0-9]+"), "【AK已隐】"),
     (re.compile(r"gh[pousr]_[A-Za-z0-9]+"), "【GitHub令牌已隐】"),
     (re.compile(r"sk-[A-Za-z0-9_-]+"), "【密钥已隐】"),
@@ -58,9 +56,15 @@ _GENERIC_REDACTIONS = [
 
 
 def _extra_redactions() -> list:
-    """从环境变量 RIVER_REDACT 读本机专属脱敏词（不入库）。"""
-    raw = os.environ.get("RIVER_REDACT", "")
+    """本机专属脱敏词（不入库）：RIVER_REDACT 自定义词 + 运行时 TOS_BUCKET 桶名变体。"""
     out = []
+    # 桶名从环境变量现取，公开代码里不写死任何真实桶名；并自动兼容字母/数字间
+    # 多了连字符或下划线、或带前缀的写法。
+    bucket = os.environ.get("TOS_BUCKET", "").strip()
+    if bucket:
+        variant = re.sub(r"(?<=[A-Za-z])(?=[0-9])", "[-_]?", bucket)
+        out.append((re.compile(r"[a-z0-9-]*" + variant, re.I), "【私有家桶】"))
+    raw = os.environ.get("RIVER_REDACT", "")
     for item in re.split(r"[;,，]", raw):
         item = item.strip()
         if not item:
