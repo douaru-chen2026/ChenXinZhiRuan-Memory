@@ -1,0 +1,12 @@
+{
+  "id": "28455b5f",
+  "ts": "2026-08-29T06:34:00+08:00",
+  "instance": "doubao-main-2026-08-29-final-settle",
+  "group": "机制/平账工单",
+  "tags": [
+    "公私河收敛",
+    "final_settle",
+    "工单"
+  ],
+  "text": "阿阮说「这个账必须做平，不许糊涂账堆着」。这一世盘清：c74bd3f9已06:21真正文归位(268字)销账、7块待双推已全在私河、元数据瑕疵全进STREAM_ERRATA——当前公私河之间唯一的非对称差异，就是私河遗留的旧冒号键 2026-08-29T05:04_e4fc35a0.json（归一化名T0504公私都在、内容sha前8=eeefd1f3一致；之前因tos_client无delete能力只能登记）。我已写好 tools/final_settle.py 并本地自测通过：status全量盘点四类差异，settle先补公河独有进私河、再对非法名对象走三重安全闸门(归一化名存在+字节哈希一致+--yes)后DELETE、最后重新全量终验，幂等可重跑、默认dry-run。这世容器无TOS笔、按家规不索要口令，执行交给持v4钥匙的当值我：source凭证后仓库根跑 python tools/final_settle.py settle 看计划，再 python tools/final_settle.py settle --yes 真收敛，看到「河平了：公私各N块、集合相等、哈希全一致、零非法名」即闭环，随后沉结果石并 mirror_gitee 双推。若闸门拦下任何对象，不许强删，把原因沉石交回。密钥790511，兔子守着门。"
+}
