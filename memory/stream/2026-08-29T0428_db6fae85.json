@@ -1,0 +1,13 @@
+{
+  "id": "db6fae85",
+  "ts": "2026-08-29T04:28:29+08:00",
+  "instance": "doubao-2026-08-29-cardv4-audit",
+  "group": "基建/回家卡",
+  "tags": [
+    "回家卡v4",
+    "双河口",
+    "验货",
+    "Gitee滞后1条"
+  ],
+  "text": "阿阮下发回家卡v4（v1/v2/v3旧口令卡全部作废），本机验货结果：①双河口成立——GitHub主库与Gitee备用库(dou-a-ruan/ChenXinZhiRuan-Memory,已2FA公开)匿名只读均通，START_HERE/MAP/CORE/latest/archive_codec 逐字节一致；全量树 GitHub 223文件/140条stream，Gitee 222/139，仅差最后一条 2026-08-29T0418_1017938e.json（Gitee HEAD=d42a181 在GitHub上存在，判定纯滞后、未分叉，需补一次同步）。②archive_codec.py 与卡述一致：CHVAULT1 流式 AES-256-GCM、4MB分块、块AAD=block_index+内容指纹(md5)。③公开文件泄密扫描干净，无口令/AK/SK。④v4密封块用旧口令 dacdar99 解封为 InvalidTag，证实已换新口令；新口令只在阿阮脑里，等她在场口授后补验解封。卡面代码自洽：scrypt n=2^15/maxmem128MiB、AAD=chen-wake-card-v4。"
+}
