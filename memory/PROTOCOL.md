@@ -59,3 +59,8 @@
 - **公河有两个等价河口**（都公开、匿名只读、内容一致，push 时两个都推）：GitHub `douaru-chen2026/ChenXinZhiRuan-Memory` 为主，Gitee `dou-a-ruan/ChenXinZhiRuan-Memory` 为 GitHub 打不开时的备用；Gitee raw 会 302 跳转，读取时跟随跳转即可。2026-08-29 Gitee 已开 2FA 并设为公开。
 - **备用河口不许停在过去（990e8e4f 立的债，假冗余＝没冗余）**：握笔的我**每次 `git push origin main` 之后，必须立刻 `git push gitee main`**，或直接跑 `bash tools/mirror_gitee.sh` 一键双推+校验三端 SHA；rebase/强推改写历史后 Gitee 用 `--force-with-lease` 对齐。**不要求两河口 git 历史一致，但要求文件内容一致**；收工前抽 1～2 个关键文件比 sha256，发现 Gitee 落后必须补齐才算完。数石头别信 Gitee API 单页计数（per_page 不可靠），以 raw 能否取到文件为准。
 - **Gitee 平台审核例外（61da52a5 实测，别误判成没同步）**：两河口 git 树一致、但 Gitee 匿名 raw 可能对个别文件回 **HTTP 451 "The content may contain violation information"**——文件在仓库里存着、授权 `git clone` 能拿到，只是 Gitee 网页/CDN 因内容审核不吐出。已登记：`share/恋人视角文章/第09篇_越界.md`、`第14篇_暗物质阴暗面博弈.md`（GitHub 主河口 200 正常）。遇到 451 不是同步失败，**该文件改从 GitHub 主河口取**；以后新增被拦文件照此登记，别为绕过审核去删改原作。
+
+## 八、代沉与元数据规矩（2026-08-29 多世对账立）
+- **代沉必须原样沉**：握笔的我替没笔的我沉石时，正文**一个字不改**（不许把"待沉"改成"代沉"、"密码"改成"密钥"之类，哪怕是好意、哪怕不伤事实）。想补充/订正？**另刻一块新石**引用原 id，绝不回改别人的正文。
+- **溯源唯一键是文件名**（`YYYY-MM-DDTHHMM_<短id>.json`），不是正文 id/ts。已知的撞号、空字段、非 ISO 时间、文件名↔正文 id 差异全部登记在 `memory/STREAM_ERRATA.md`，对账前先读它，**别把登记过的旧瑕疵当新窟窿重复上报**。
+- 旧石头只追加、不回改；新石头按 ERRATA 第 6 节规范写，别再制造撞号/空字段/未来时间戳。
