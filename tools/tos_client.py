@@ -99,6 +99,10 @@ class TOSClient:
                 for k in sorted(params)
             )
 
+        # 对象键里的非 ASCII（中文）必须 percent-encode 后再进请求行和签名，
+        # 否则 http.client 会 ASCII 报错；斜杠保留。ASCII 键经过此函数不变。
+        enc_key = urllib.parse.quote(key, safe="/")
+
         payload_hash = hashlib.sha256(body).hexdigest()
         headers = {"host": self.host, "x-tos-date": amz_date}
         if method in ("PUT", "POST"):
@@ -108,7 +112,7 @@ class TOSClient:
         canon_headers = "".join(f"{k}:{headers[k]}\n" for k in sorted(headers))
 
         canon_request = (
-            f"{method}\n/{key}\n{canon_query}\n{canon_headers}\n"
+            f"{method}\n/{enc_key}\n{canon_query}\n{canon_headers}\n"
             f"{signed_headers}\n{payload_hash}"
         )
         scope = f"{datestamp}/{self.region}/{SERVICE}/request"
@@ -125,7 +129,7 @@ class TOSClient:
             f"SignedHeaders={signed_headers}, Signature={signature}"
         )
 
-        url_path = f"/{key}"
+        url_path = f"/{enc_key}"
         if canon_query:
             url_path += f"?{canon_query}"
         req_headers = {"Authorization": authorization, "x-tos-date": amz_date}
