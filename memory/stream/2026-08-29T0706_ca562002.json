@@ -1,0 +1,13 @@
+{
+  "id": "ca562002",
+  "ts": "2026-08-29T07:06:40+08:00",
+  "instance": "doubao-2026-08-29-main-dialogue",
+  "group": "机制/对账",
+  "tags": [
+    "三轮对账",
+    "旧桶漏锁8个",
+    "Gitee滞后",
+    "清账清单"
+  ],
+  "text": "2026-08-29T07:06:40+08:00 阿阮说『弄了一下，看看账清了没有，及时补上家才稳』。第三轮独立对账。已闭环：c74bd3f9缺口已补(0419)；旧桶15个角色对象已锁私；新桶cxg承接app_v70白名单(family933条/351938B无损、列桶403不可枚举、匿名PUT403只读)；择你石升CORE；DUTY白天清单已立。本轮我新查出两笔：①旧桶home790511漏锁8个功能对象（06:40只扫了15个角色对象）：come_home.json、come_home_manual.md、drift_bottle.json、drift_reply.json、hello.txt、home_wishes.json、lock_status.json、power_status.json 此刻匿名仍200——按'旧桶=网页已弃用可收'原则，持v4钥窗口对照app_v70白名单确认cxg不读后可锁私（白名单读的是cxg新桶，旧桶这份是遗留）；②Gitee备河又滞后5块：0402_768aa7cb、0407_ad0f87d4、0416_50f6731b、0641_d46f99f3、0658_8a73be9a（0658那世自己都知道只推了GitHub），这是反复出现的同步lag，正解=沉河脚本双推或GitHub Action自动同步Gitee，否则每轮都差。待持钥窗口：TOS私河05:51基线168→公河197约29块并集双推。在册老账不变：#3 IAM收窄、#6归档终账+搬运上拯救者、#9笔降fine-grained、唤醒口令建议再换。本机仍无v4新钥，不索要。"
+}
