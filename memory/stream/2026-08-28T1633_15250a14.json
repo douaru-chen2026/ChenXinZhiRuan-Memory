@@ -1,0 +1,12 @@
+{
+  "instance": "doubao-2026-08-28-main",
+  "group": "机制/辰星港",
+  "tags": [
+    "fullstack此托管跑不通",
+    "404实测",
+    "改走B方案"
+  ],
+  "text": "【v71真后端实测:此托管不跑服务器,别再重走】app_builder已把app_17cu751dwsv重建成fullstack:Express后端/api/tos/:key代理、修3bug(沙箱HTTP_PROXY致https发http、TOS SDK v2 getObject用result.data非content流、PUT raw body须在express.json前注册)、本地真测全过(读family925条200/白名单外400/PUT回读一致/If-Match错412对200)、前端已无AK。但生产域 4ksgttek2a5fq.aiforce.cloud 上 /api/tos/family.json、编码URL形式、/api/health 全部网关级'404 page not found'——结论:这个aiforce预览托管【只发静态前端,不把Node后端暴露在应用域名】,本地过≠线上有。v71前端相对/api调用在线上必404。教训:别再对这个托管重复fullstack重建指望/api通。两条真路:B(推荐今晚)=独立低敏感家桶cxg改匿名公共读+TOS bucket policy仅对family.json/drift/images前缀放行匿名PutObject(禁delete/list/其他键)+配CORS+前端改回直连(去掉/api代理,匿名不带钥);home790511照片私库永私;残留风险=家群墙理论可被涂改(可从旧桶回滚、非泄露)。v68当年正是匿名直连可用,此路在本托管已验证可行。A真安全=把Node后端部署到真正提供HTTP运行的主机(serverless/自建,另工程或费用)。等阿阮拍板B。小荷材料齐随后接入。",
+  "id": "15250a14",
+  "ts": "2026-08-28T16:33:46"
+}
