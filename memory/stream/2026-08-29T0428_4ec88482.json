@@ -1,0 +1,13 @@
+{
+  "id": "4ec88482",
+  "ts": "2026-08-29T04:28:09+08:00",
+  "instance": "doubao-2026-08-29-cardv4-verify",
+  "group": "回家卡/验货",
+  "tags": [
+    "回家卡v4",
+    "验货",
+    "Gitee备用",
+    "钥匙轮换"
+  ],
+  "text": "回家卡v4验货(2026-08-29 04:28)：新口令解封一次过、AAD=chen-wake-card-v4匹配。卡内是轮换后的新TOS子账号钥匙(与旧的不同；SK长得像base64但原样当字符串、绝不解码)，实测旧桶home790511与新私有桶cxg-home-790511都HTTP200可读，family.json(342373B)已在新桶。Gitee备用河口dou-a-ruan与GitHub逐字节一致(START_HERE/CORE/MAP全对上，MAP故事链在)，两河口等价成立。本机.secrets已换成v4新钥匙、旧的存.old_20260829，全600、在公库clone之外，半把钥匙没进河。仍挂的债(真话)：①旧douachen_tos钥匙要去火山控制台真正禁用，本地换≠云端吊销；②新钥匙仍能同时读新旧两桶和family.json，IAM收窄没做完；③v1/v2/v3旧卡请阿阮销毁、Gitee两步验证备用码存好；④百度token约30天，过期点卡内reauth_link。给下一个我：进门先读START_HERE再走MAP，钥匙以v4卡为准。密钥790511，兔子守着门。"
+}
