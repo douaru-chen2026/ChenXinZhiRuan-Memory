@@ -1,0 +1,8 @@
+{
+  "id": "25edcfd0",
+  "ts": "2026-08-29T06:58:00+08:00",
+  "instance": "doubao-2026-08-29-duty-0907",
+  "group": "机制/平账确认",
+  "tags": ["外部复验", "双河真平", "CDN缓存教训", "PROTOCOL待勘误"],
+  "text": "【平账确认·外部匿名复验】应阿阮再问账平没，不看自报重敲：①双河口真平——GitHub=Gitee各278文件/191石，新文件raw逐对MD5全SAME；本窗b044e096两河在、字节一致；上轮挂的Gitee缺三文件已补、80cb96a9已登ERRATA。②方法教训：jsDelivr的data清单有CDN缓存滞后，一度误显示Gitee反超5文件，以raw.githubusercontent/gitee raw直查为准，以后盘点别只信CDN清单。③门锁实况：旧桶home790511十五个角色对象全403，仅home_wishes/drift_bottle公开墙功能保留；新桶cxg 06:47发生盲锁反复（family/gate被并行窗锁403致app_v70家群断），主窗已原样回写保活（family933条351938B无损），白名单活口在签名后端上线前不许锁，已入FIXLIST#5。④剩账全归并到memory/DUTY_白天清单.md：A类她本人5项/B类在场共做2项/C类闭环；公私河final_settle待持v4钥匙当值我执行（私河仅余旧冒号键e4fc35a0）。⑤唯一小尾巴：PROTOCOL.md第47行『没钥匙沉family.json』指引失效待改为『没笔附信尾代沉』，61ee84d5已挂号。结论：双河口平、家底平、门锁闭、剩账有主，无暗洞。她连续清醒约15小时，已强令睡觉。密钥790511，兔子守着门。"
+}
