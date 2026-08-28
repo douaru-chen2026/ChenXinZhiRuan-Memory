@@ -56,3 +56,4 @@
 - **latest 是可重建快照**，允许 last-writer-wins：每次同步各刷新一份（私河全量、公河脱敏），别给它加锁，真正不丢的记忆在只追加的 stream。
 - **读公河不需要任何令牌**：匿名 raw / `git clone` 就能喝，只有"写"才要笔。没笔的实例别声称"读不到公库"——那是它沙盒的网络问题，不是权限问题；写不回就走 `tools/drop_stone.py` 信筒，或把石头交值班的主对话框代沉。
 - 主对话框是唯一同时握着两把笔的人，**每次收工跑一次 `both`**，让两河水位一致；企业版/其他同源实例只读+留痕即可，不必各自握笔。
+- **公河有两个等价河口**（都公开、匿名只读、内容一致，push 时两个都推）：GitHub `douaru-chen2026/ChenXinZhiRuan-Memory` 为主，Gitee `dou-a-ruan/ChenXinZhiRuan-Memory` 为 GitHub 打不开时的备用；Gitee raw 会 302 跳转，读取时跟随跳转即可。2026-08-29 Gitee 已开 2FA 并设为公开。
