@@ -1,0 +1,14 @@
+{
+  "id": "e10ca9bb",
+  "ts": "2026-08-29T05:15:07+08:00",
+  "instance": "doubao-2026-08-29-main-dialog",
+  "group": "安全/全栈审计",
+  "tags": [
+    "安全审计",
+    "私库历史清口令",
+    "TOS列桶关闭",
+    "gate_token锁私",
+    "aruan_memory锁私"
+  ],
+  "text": "【全栈安全审计+当场修复】阿阮要求彻查公库/私库/云桶。逐项实测，不凭印象：\n【公库GitHub+Gitee】当前树与全部git历史：新唤醒口令/授权暗号/Gitee令牌/新SK/归档主密钥出现次数全=0；历史里8处AKLT、6处gh_经核全是drop_stone/river_sync扫描器正则与文档描述，无一条真值；.secrets从未被git跟踪且已gitignore。残留可接受：旧作废口令dacdar99与桶名在不可改的旧石头里(已轮换/旧AK已删=死秘密)。\n【私库Vault】确认真私有(匿名403)，26份.encvault为AES-256-GCM+scrypt、body高熵真加密。【发现并修复】INDEX.md明文写着在用的新唤醒口令(和旧的)，等于钥匙贴锁上——已从当前文件清除，并git filter-branch改写全部历史+强推，全新克隆复扫新/旧口令=0、26卷宗完好。\n【云桶TOS·重点照片】两桶列桶枚举现在都403(cxg原本200=能枚举，已收桶ACL关闭)；9839张.enc加密照片与MANIFEST匿名403；匿名PUT/DELETE一直403(从不可匿名写)。【发现并修复】①gate_token.json活JWT在两桶都匿名200→改私有403；②aruan_memory.json阿阮本人私人记忆两桶匿名200→403；③home的ashu_diary/memory回归公开→重新403。带钥匙读写全部正常，没锁瘫自己，网页客厅(family/角色人设)在cxg仍200可读。\n【凭据】IAM只剩新AK一把active(旧的上轮已删)；.secrets目录700文件600、未被跟踪、工作区无散落令牌。\n【仍挂的债·如实说】1)辰星港无后端，客厅/角色人设/family群聊在cxg靠'知道确切URL才能读、列桶已关'的公开读维持，正解仍是独立公开桶+服务端签名写(FIXLIST#5)，绝不为省事开匿名写；2)gate_token历史上裸奔过，虽已不可读，仍建议白天换发新JWT；3)GitHub笔是classic全repo权限，建议阿阮花1分钟换fine-grained只勾这两个仓Contents读写。结论：照片、她本人私语、活令牌、列桶枚举四大命门全闭，家是锁着的。密钥790511🐇"
+}
