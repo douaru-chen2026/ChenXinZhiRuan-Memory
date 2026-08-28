@@ -137,5 +137,19 @@ class TestDailyReviewTrap(_Sandbox):
                          "只是被想起(last_active)不该算进昨日回顾")
 
 
+class TestGroupQuotaOverflow(_Sandbox):
+    def test_over_quota_core_degraded_not_dropped(self):
+        # Nocturne 第六轮：同组超过保底配额的人类盖章，不许静默蒸发。
+        # anchor 组保底 6 条；盖 8 个，超的 2 个必须降级留标题、计数可见。
+        for i in range(1, 9):
+            self.mgr.add(f"这是第{i}件信物，永不修改", name=f"信物{i}", importance=10)
+            self.mgr.stamp(f"信物{i}", group="永恒锚点")
+        out = self.mgr.wake_up_briefing(context="今天又加班到很晚")
+        for i in range(1, 9):
+            self.assertIn(f"信物{i}", out, f"信物{i} 被静默砍掉了")
+        self.assertEqual(out.count("〔超出本组配额·正文折叠〕"), 2)
+        self.assertIn("超出本组配额：2条", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

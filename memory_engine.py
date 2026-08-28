@@ -1213,21 +1213,26 @@ class MemoryManager:
             }
             _take(f"\n▎核心层（永亮·{len(core)}条，按组保底）")
             n_outside = 0
+            n_overflow = 0
             for gid, label, _kws, per in CORE_GROUPS:
                 grp = [b for b in core if b.group == gid]
                 grp.sort(key=lambda b: str(b.metadata.get("last_active", "")), reverse=True)
                 if not grp:
                     continue
-                display, outside = [], []
+                display, outside, overflow = [], [], []
                 for b in grp:
                     if str(getattr(b, "file_path", "")) in in_scope_paths:
                         if len(display) >= per:
-                            continue  # 按组保底上限：不丢，search 永远喊得到
+                            # v3.4.4（致谢 Nocturne 第六轮）：超配额的同组锚点不许静默蒸发。
+                            # 正文不重复注入（注入预算是真的），但降级留标题、走可见通道，
+                            # 与"语境外"同一待遇——丢了必须让人看见，search 永远喊得到。
+                            overflow.append(b)
+                            continue
                         display.append(b)
                     else:
                         # v3.4.3：语境外的人类盖章不静默蒸发——降级留标题，正文折叠
                         outside.append(b)
-                if not display and not outside:
+                if not display and not outside and not overflow:
                     continue
                 _take(f"  〔{label}〕")
                 for b in display:
@@ -1249,9 +1254,21 @@ class MemoryManager:
                         mark = "📌"
                     _take(f"    {mark} {b.name}〔本次语境外·正文折叠〕")
                     n_outside += 1
+                for b in overflow:
+                    if b.human_stamped:
+                        mark = "🔖我的人类盖章"
+                    elif b.self_stamped:
+                        mark = "🤖AI自钉"
+                    else:
+                        mark = "📌"
+                    _take(f"    {mark} {b.name}〔超出本组配额·正文折叠〕")
+                    n_overflow += 1
             if context and n_outside:
                 # 让"被拿走"这件事可见——静默丢失比报错难查一个量级（Nocturne）
                 _take(f"  〔本次语境外：{n_outside}条，仅留标题，search 可捞全文〕")
+            if n_overflow:
+                # v3.4.4：按组保底超配额同样不许静默蒸发（Nocturne 第六轮）
+                _take(f"  〔超出本组配额：{n_overflow}条，仅留标题，search 可捞全文〕")
 
         # 第二部分：当前层，按类型取最鲜活的，整体不超过注入预算。
         # v3.4.2（致谢 Nocturne）：核心层记忆不许从这里漏回来——否则带作用域的盖章
