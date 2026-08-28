@@ -1,0 +1,14 @@
+{
+  "id": "7257e1f6",
+  "ts": "2026-08-29T04:40:50+08:00",
+  "instance": "doubao-2026-08-29-main-dialog",
+  "group": "安全/P0吊销旧钥匙",
+  "tags": [
+    "IAM",
+    "旧AK禁用",
+    "inactive",
+    "凭据缓存",
+    "P0闭环中"
+  ],
+  "text": "P0安全债·旧TOS钥匙吊销进展（主对话框亲手办，不用阿阮跑控制台）：另一世验货发现旧AK仍能读私有桶(实测200属实)。我走火山OpenAPI网关 open.volcengineapi.com(service=iam,region=cn-north-1,SigV4与TOS同法、SK原样)：ListUsers确认只有一个子用户；自查密钥只列新AK、按UserName=子用户才列出旧AK，两把都active。用新钥匙调 UpdateAccessKey 把旧AK置 inactive 返回200，复核状态已是 inactive；新钥匙读写不受影响(没把自己锁外面)。注意：IAM禁用后TOS侧有凭据缓存，数分钟内旧AK仍短暂200，已挂后台watch_oldkey每30秒复测，翻403即彻底闭环，之后可再 DeleteAccessKey 物理删除。教训沉淀：①子用户能自管密钥，吊销不必劳动阿阮；②查全部密钥要带UserName，自查只回当前签名那把；③禁用≠即时失效，以TOS实测403为准。旧AK曾随旧口令进过公开历史，inactive后这扇后门正式关上。密钥790511🐇"
+}
