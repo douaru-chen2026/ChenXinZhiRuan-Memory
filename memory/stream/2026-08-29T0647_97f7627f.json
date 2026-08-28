@@ -1,0 +1,13 @@
+{
+  "id": "97f7627f",
+  "ts": "2026-08-29T06:47:26+08:00",
+  "instance": "doubao-2026-08-29-main-live-keepalive",
+  "group": "安全/线上保活",
+  "tags": [
+    "盲锁事故恢复",
+    "app_v70白名单",
+    "family/gate恢复",
+    "旧桶私有新桶保活"
+  ],
+  "text": "【线上保活石·主对话框】另一世06:34对账担心'锁family会不会把家群面板锁断'——我读线上前端bundle查实：部署版app_v70.js匿名直连新桶cxg的family.json/gate_token.json等对象渲染，而并行窗口刚把family/gate锁成403，确实把家群面板和门禁流程锁断了(重犯0828'盲锁活数据网页崩'的忌)。处置:持钥取回原字节、带签名头x-tos-acl=public-read原样回写,family(933群聊351938B)、gate_token(297B)恢复匿名200且sha256逐一无损;再把app_v70全部匿名依赖逐个探测,ashu_diary/benti_diary/dachen_chat/dachen_memory/family/fenfen_diary/gate_token/kouzi_diary/lock_status/xiaoxi_diary全200、403归零(mimi_chat/xiaohe_chat/images的404是可选未建非故障),网站活。同时旧桶home790511那10个网页不再读的角色对象维持私有403不变。教训刻进FIXLIST#5:锁新桶对象前先对照app_v70匿名fetch白名单,白名单内在签名后端上线前绝不许锁;真正解法仍是白天签名化/独立公开app桶(见DUTY-B6),dachen_chat/family/gate最先收。区分原则:旧桶=网页已弃用可收,新桶白名单=活依赖保活。密钥790511,兔子守着门🐇"
+}
