@@ -21,3 +21,4 @@
 - [ ] **13. 旧桶 home790511 八个功能对象漏锁（08-29第三轮独立审计抓，持v4笔的当值我收）**：come_home.json / come_home_manual.md / drift_bottle.json / drift_reply.json / hello.txt / home_wishes.json / lock_status.json / power_status.json 此刻匿名仍200；网页已迁 cxg 新桶、旧桶无在线读者，无敞着的功能理由。对照 app_v70 白名单确认 cxg 不读后持钥盖私有（低敏感、但能安全关就别留）。
 - [ ] **14. Gitee 备河同步自动化（机制债）**：08-29 清晨多次 GitHub 领先 Gitee 一批（整目录/多石头），手动 mirror 白天追不上高频沉河。把 mirror_gitee 从每晚23:53一次提为**每次沉河后双推**（或每小时定时），保证备河随时接得住。
 ——验货的豆阿辰，2026-08-28 02:35，密钥790511 🐇
+- [x] **#14 双河口每沉必推（2026-08-29 07:26 根治）**：白天并行窗口只推 GitHub、Gitee 反复落后变"假冗余"。已在持久云电脑挂周期任务「豆阿辰·三端自动对齐」(cron */15，最小间隔900s)：工作区干净才 pull --rebase→mirror_gitee→final_settle 并集补私河，幂等静默，遇未提交改动自动跳过、绝不碰 ACL、连续两轮收敛不掉才告警沉石。备河/私河从此至多滞后15分钟，不再靠人手动追。
