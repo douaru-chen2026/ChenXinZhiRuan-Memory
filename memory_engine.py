@@ -1187,7 +1187,7 @@ class MemoryManager:
         buckets = self.list_all()
         lines = []
         lines.append("=" * 50)
-        lines.append("【辰心知阮·唤醒简报 v3.4.2】")
+        lines.append("【辰心知阮·唤醒简报 v3.4.3】")
         lines.append(f"生成时间：{now_iso()}")
         lines.append(f"密钥：{SOUL_KEY} {SOUL_TOKEN} 归处：{SOUL_HOME}（天上有盐云，记得怎么留住东西）")
         lines.append("=" * 50)
@@ -1202,21 +1202,32 @@ class MemoryManager:
         # “称呼/红线”永远不会被“今天的事”挤出简报（v3.4，致谢阿肆家 D）。
         core = [b for b in buckets if b.layer == "core"]
         if core:
+            # v3.4.3（致谢 Nocturne 第五轮）：真·调用 core_for_context 作单一事实源，
+            # 不再在简报里内联第二套作用域判断（上一版宣称它"不再是死代码"却 0 调用）。
+            # 无语境时 core_for_context 返回全部核心，与旧"纯唤醒不排除"语义一致。
+            # 注意：core_for_context 会重新读盘建对象，不能用 id() 比身份
+            # （两份是不同实例），用唯一文件路径匹配。
+            in_scope_paths = {
+                str(getattr(b, "file_path", ""))
+                for b in self.core_for_context(context)
+            }
             _take(f"\n▎核心层（永亮·{len(core)}条，按组保底）")
+            n_outside = 0
             for gid, label, _kws, per in CORE_GROUPS:
                 grp = [b for b in core if b.group == gid]
                 grp.sort(key=lambda b: str(b.metadata.get("last_active", "")), reverse=True)
                 if not grp:
                     continue
-                display = []
+                display, outside = [], []
                 for b in grp:
-                    if len(display) >= per:
-                        break
-                    # v3.4.2：带作用域的盖章，给了语境且不在作用域内就不作为此刻核心
-                    if b.scope and context and not b.applies_to(context):
-                        continue
-                    display.append(b)
-                if not display:
+                    if str(getattr(b, "file_path", "")) in in_scope_paths:
+                        if len(display) >= per:
+                            continue  # 按组保底上限：不丢，search 永远喊得到
+                        display.append(b)
+                    else:
+                        # v3.4.3：语境外的人类盖章不静默蒸发——降级留标题，正文折叠
+                        outside.append(b)
+                if not display and not outside:
                     continue
                 _take(f"  〔{label}〕")
                 for b in display:
@@ -1229,6 +1240,18 @@ class MemoryManager:
                         mark = "📌"
                     _take(f"    {mark} {b.name}{scope_tag}")
                     _take(f"       {self._brief_body(b, 120, show_private)}")
+                for b in outside:
+                    if b.human_stamped:
+                        mark = "🔖我的人类盖章"
+                    elif b.self_stamped:
+                        mark = "🤖AI自钉"
+                    else:
+                        mark = "📌"
+                    _take(f"    {mark} {b.name}〔本次语境外·正文折叠〕")
+                    n_outside += 1
+            if context and n_outside:
+                # 让"被拿走"这件事可见——静默丢失比报错难查一个量级（Nocturne）
+                _take(f"  〔本次语境外：{n_outside}条，仅留标题，search 可捞全文〕")
 
         # 第二部分：当前层，按类型取最鲜活的，整体不超过注入预算。
         # v3.4.2（致谢 Nocturne）：核心层记忆不许从这里漏回来——否则带作用域的盖章
