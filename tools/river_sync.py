@@ -47,6 +47,8 @@ TOS_PREFIX = "memory/stream/"
 # 这样公开工具本身不泄露任何字面秘密，换一家也能直接用。
 _GENERIC_REDACTIONS = [
     (re.compile(r"tos(?:-s3)?-[a-z0-9-]+\.volces\.com"), "【TOS端点】"),
+    # 家桶名各种写法：home790511 / home-790511 / cxg-home-790511 …
+    (re.compile(r"[a-z0-9-]*home[-_]?790511", re.I), "【私有家桶】"),
     (re.compile(r"AKLT[A-Za-z0-9]+"), "【AK已隐】"),
     (re.compile(r"gh[pousr]_[A-Za-z0-9]+"), "【GitHub令牌已隐】"),
     (re.compile(r"sk-[A-Za-z0-9_-]+"), "【密钥已隐】"),
