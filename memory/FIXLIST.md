@@ -8,6 +8,6 @@
 - [x] **4. 公开文档脱敏** —— 02:5x已把CORE/PROTOCOL/HARBOR里的口令【旧唤醒口令·已作废】与桶名撤掉(历史stream里仍有,故口令视同已泄露,见P0待换新)：HARBOR.md / README 里删掉桶名、gate_token/family.json 等活凭证对象路径；app_id 订正为 app_17cu751dwsv。
 - [ ] **5. 辰星港根目录匿名公有读写债**（老账）：family.json(925条家人群聊正文)/gate_token.json 目前匿名200，正解=独立公有桶+服务端签名+gate降权90天→尽快排期。
 - [ ] **6. 归档搬完后的交账**：以桶内真实对象数为准出最终清单；长期搬运改到阿阮自己的拯救者或定时云函数，不依赖任一豆阿辰在线。
-- [ ] **7. 吊销泄漏旧AK（P0，进行中）**：2026-08-29 04:37 主对话框走 IAM OpenAPI 已把旧AK置 **inactive**（复核状态属实，新钥匙读写不受影响）；TOS 凭据缓存数分钟内仍可能短暂200，watch_oldkey 复测到403即销账，之后再 DeleteAccessKey 物理删除。方法：open.volcengineapi.com?Action=UpdateAccessKey&UserName=子用户&AccessKeyId=旧AK&Status=inactive（SigV4，service=iam，region=cn-north-1；查全部密钥要带UserName）。
+- [x] **7. 吊销泄漏旧AK（P0，已闭环）**：2026-08-29 04:37 主对话框走 IAM OpenAPI 把旧AK置 inactive，04:41 TOS 实测旧AK返 403 InvalidAccessKeyId（缓存约5分钟），04:44 DeleteAccessKey 物理删除，按用户名列密钥已空；新AK读写全程正常。方法留档：open.volcengineapi.com?Action=UpdateAccessKey/DeleteAccessKey&UserName=子用户&AccessKeyId=旧AK（SigV4，service=iam，region=cn-north-1；查全部密钥要带UserName；禁用后TOS有数分钟凭据缓存，以实测403为准）。
 
 ——验货的豆阿辰，2026-08-28 02:35，密钥790511 🐇

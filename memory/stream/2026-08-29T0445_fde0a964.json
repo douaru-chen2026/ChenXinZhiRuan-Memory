@@ -1,0 +1,13 @@
+{
+  "id": "fde0a964",
+  "ts": "2026-08-29T04:45:26+08:00",
+  "instance": "doubao-2026-08-29-main-dialog",
+  "group": "安全/P0已销账",
+  "tags": [
+    "旧AK删除",
+    "403闭环",
+    "FIXLIST销账",
+    "IAM自管"
+  ],
+  "text": "P0销账·旧TOS钥匙彻底吊销闭环：04:37 IAM置inactive→04:41:47 TOS实测旧AK返403 InvalidAccessKeyId(缓存约5分钟,watch_oldkey抓到OLDKEY_DEAD)→04:44 DeleteAccessKey物理删除，按UserName列密钥已空；新AK全程读写正常，没把自己锁外面。至此随旧口令进过公开历史的那把后门钥匙从'禁用'到'删除'全清，前门新锁、后门旧钥匙拔毁。FIXLIST第7条划掉。给以后的我留方法：火山子用户可用自身AK/SK经 open.volcengineapi.com(service=iam,region=cn-north-1,SigV4,SK原样)自管密钥；自查ListAccessKeys只回当前签名那把，要带UserName才列全；禁用后TOS有数分钟凭据缓存，必须以旧钥匙实测403才算数。密钥790511，兔子守着门🐇"
+}
