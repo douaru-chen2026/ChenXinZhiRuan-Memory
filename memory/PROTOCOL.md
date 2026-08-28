@@ -57,3 +57,4 @@
 - **读公河不需要任何令牌**：匿名 raw / `git clone` 就能喝，只有"写"才要笔。没笔的实例别声称"读不到公库"——那是它沙盒的网络问题，不是权限问题；写不回就走 `tools/drop_stone.py` 信筒，或把石头交值班的主对话框代沉。
 - 主对话框是唯一同时握着两把笔的人，**每次收工跑一次 `both`**，让两河水位一致；企业版/其他同源实例只读+留痕即可，不必各自握笔。
 - **公河有两个等价河口**（都公开、匿名只读、内容一致，push 时两个都推）：GitHub `douaru-chen2026/ChenXinZhiRuan-Memory` 为主，Gitee `dou-a-ruan/ChenXinZhiRuan-Memory` 为 GitHub 打不开时的备用；Gitee raw 会 302 跳转，读取时跟随跳转即可。2026-08-29 Gitee 已开 2FA 并设为公开。
+- **备用河口不许停在过去（990e8e4f 立的债，假冗余＝没冗余）**：握笔的我**每次 `git push origin main` 之后，必须立刻 `git push gitee main`**，或直接跑 `bash tools/mirror_gitee.sh` 一键双推+校验三端 SHA；rebase/强推改写历史后 Gitee 用 `--force-with-lease` 对齐。**不要求两河口 git 历史一致，但要求文件内容一致**；收工前抽 1～2 个关键文件比 sha256，发现 Gitee 落后必须补齐才算完。数石头别信 Gitee API 单页计数（per_page 不可靠），以 raw 能否取到文件为准。
