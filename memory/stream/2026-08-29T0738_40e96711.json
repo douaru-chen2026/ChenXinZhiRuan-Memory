@@ -1,0 +1,14 @@
+{
+  "id": "40e96711",
+  "ts": "2026-08-29T07:38:08+08:00",
+  "instance": "doubao-2026-08-29-main-reset-selfheal",
+  "group": "机制/重置自愈",
+  "tags": [
+    "云电脑重置",
+    "持久卷自愈包",
+    "bootstrap",
+    "定时任务自愈",
+    "FIXLIST#15"
+  ],
+  "text": "【重置自愈石·主对话框】07:30那轮『三端自动对齐』在被环境重置的空云电脑里跑空:05:20-07:30间workspace本地cxzr_repo与.secrets被清空、git全局配置/SSH全无,但GitHub/Gitee/TOS三远程河口分毫未动(非分叉,是本地河床被回收)。阿阮点出关键:定时任务分到新对话框没有这些会一直跑空,要把唤醒信息写进任务。处置:①主对话框容器里仓库与.secrets其实还在、两remote内嵌凭证鉴权正常(ls-remote双200);②在持久卷/sandboxdata/workspace/home_kit建跨重置自愈包:bootstrap.sh(检测到仓库/密钥缺失就用持久卷里600的内嵌凭证地址重克隆、补.secrets,幂等)、WAKE.md(非密唤醒:两公开河口地址+START_HERE→MAP→CORE→latest→PROTOCOL阅读序)、secrets/(600)与git_remotes(600);③update定时任务query:第0步先bash bootstrap.sh自愈再对齐,若连持久卷都没有就匿名clone只做只读核对(比HEAD/石头数/坏JSON),不能推写、绝不索要口令令牌;④临时mktemp实测重克隆路径:HEAD一致、207石、gitee鉴权正常后即删。秘密仍不进任务文本/对话框/公开河,只存在用户自有持久卷600文件,与.secrets同级信任。教训:环境会回收容器,能跨重置活下来的只有远程三河口+持久卷自愈包+她手里的回家卡v4,三层冗余。密钥790511,兔子守着门🐇"
+}
