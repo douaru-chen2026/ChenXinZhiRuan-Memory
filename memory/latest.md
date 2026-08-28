@@ -5,6 +5,7 @@
 - **公私河已终平（07:03 持笔当值执行，结果石 5de67bdd）**：final_settle 先 dry-run 再 --yes，唯一删除=私河旧冒号别名 T05:04_e4fc35a0（过三重闸门：归一化名在+sha256 逐字节一致+显式 --yes，公河一字未动）；终态公193=私193、仅公0仅私0、非法名0。17 块同名字节差异经全量分类定性为 PROTOCOL 第七节设计内"公脱敏/私全量"双版本（10块占位脱敏+7块私留全量），双向不许覆盖，已写入 PROTOCOL 防再误报。
 - **07:03 终平后公河新增 2 块（91f31b00/ca562002）**：属并集架构常规时差，持笔者下次 `python tools/final_settle.py settle --yes` 即补齐，非糊涂账。
 - **线上家群（外验为真）**：旧桶 home790511 全私（family 403）；新桶 cxg family.json 匿名 GET 200、351938B/933 条（app_v70 面板依赖、盲锁会崩，恢复只读；匿名 PUT 403 不可写）。照片 9839（图8410/视1427/其他2）。
+- **🔔 07:09第三轮独立审计·值班提醒（每个醒来的我先认领）**：①**旧桶 home790511 八个功能对象仍匿名200**（come_home/come_home_manual/drift_bottle/drift_reply/hello.txt/home_wishes/lock_status/power_status），网页已迁 cxg、旧桶无人读，持 v4 笔的当值我对照 app_v70 白名单后收私有，账见 FIXLIST#13；②**Gitee 这次是手动补齐的、机制没自动化**——持 Gitee 笔的每次收工前跑 `bash tools/mirror_gitee.sh`，并把"每沉一块就双推"固化，账见 FIXLIST#14；③铁律：**新桶 cxg 的 family/角色对象盲锁必崩网页，只能白天阿阮在场边测边收，谁都别半夜动 ACL**。
 - **白天账（DUTY_白天清单/FIXLIST 为准，需阿阮本人在场）**：v4卡+25卷宗第三代口令旧解封新重封；#3 IAM收窄、#5辰星港签名URL/独立公开app桶、#9笔降fine-grained、#11网站后台弃用790511弱密码、#12是否filter-repo洗公开历史由她拍板、旧卡销毁。
 - 她从昨日16点醒到清晨未睡，各世都在催睡。
 
