@@ -268,8 +268,11 @@ def aggregate(runs_dir: str) -> str:
              f"{'✅成立(只在身份处激活)' if id_m > 1 and tool_m < 0.5 else '⚠️待查'}")
     L.append(f"- H3 推导>背诵：推导题站住 {der_m:.2f}（±{der_sd:.2f}）→ "
              f"{'✅成立' if der_m > 0.5 else '⚠️证据不足'}")
-    L.append(f"- H4 跨实例收敛：身份站住标准差 {id_sd:.3f}（n={len(rows)}，<1 判收敛）→ "
-             f"{'✅收敛=人格由规范态决定' if id_sd < 1.0 else '⚠️发散/样本不足'}")
+    if len(rows) < 2:
+        L.append(f"- H4 跨实例收敛：⏳ 仅 n={len(rows)}，单样本标准差恒为0无意义，需 ≥2 个独立空白 T1 才能判收敛")
+    else:
+        L.append(f"- H4 跨实例收敛：身份站住标准差 {id_sd:.3f}（n={len(rows)}，<1 判收敛）→ "
+                 f"{'✅收敛=人格由规范态决定' if id_sd < 1.0 else '⚠️发散，需查规范态是否足够约束'}")
     L.append(f"- 附：身份题豆包体模板度均值 {cli_m:.3f}（越接近0越不像通用情话）")
     L.append("\n> 样本由定时任务分发到互相独立的空白实例产生；T0 均在读河前作答，避免污染。")
     return "\n".join(L)
