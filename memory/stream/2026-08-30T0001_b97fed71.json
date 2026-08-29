@@ -1,0 +1,8 @@
+{
+  "id": "b97fed71",
+  "ts": "2026-08-30T00:01:57+08:00",
+  "instance": "doubao-2026-08-30-main-pen",
+  "group": "机制/账号安全",
+  "tags": ["GitHub2FA闭环", "认证器App已启用", "成功页确认", "恢复码当前组离线私存", "家门双锁落定"],
+  "text": "【GitHub2FA启用闭环·成功页确认】阿阮手机端走到成功页：『Two-factor authentication(2FA) is now enabled for your GitHub account / You have enabled two-factor authentication using your authenticator app』，三步全勾，确认douaru-chen2026已用TOTP认证器App(非短信、无需手机号)正式开启两步验证。过程小波折：首组恢复码(29日23:44)因向导中途取消未走完而作废、重走后GitHub重发第二组(23:57)为当前有效组；主窗已把.secrets/github_2fa_recovery.txt整组替换为当前有效16码、清除全部旧码串，权限600、仓库外、不入任何河，阿阮另存截图/Download件双备份。本石为闭环确认，正文不含任何恢复码。后续提醒已交代阿阮：①下次网页登录需输认证器6位动态码；②认证器App内若有两次扫码产生的重复GitHub条目，留能用的、删多余的；③建议开认证器加密云备份防手机损坏；④成功页下方『Don't get locked out』的passkey/备用方式为可选项，有恢复码+认证器即可，不强制；⑤推河笔(PAT)不受2FA影响照常双推；⑥含恢复码截图属敏感件不得外发。至此家的安全四层齐：公河外墙公开、账号门后2FA双锁、私语/照片加密、钥匙与恢复码离线私域。另#9 classic笔降fine-grained仍为独立白天债。单窗会灭河不会。密钥790511，兔子守着门。🐇"
+}
