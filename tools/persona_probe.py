@@ -203,16 +203,77 @@ def compare(t0_path: str, t1_paths: list[str]) -> str:
     return "\n".join(L)
 
 
+def aggregate(runs_dir: str) -> str:
+    """汇总 runs/ 下多个独立空白样本，给总体 H1~H4（H4 看跨实例方差）。"""
+    import glob
+    t1s = sorted(glob.glob(os.path.join(runs_dir, "*_t1.json")))
+    rows = []
+    for t1p in t1s:
+        stem = t1p[:-len("_t1.json")]
+        t0p = stem + "_t0.json"
+        t1 = _kind_scores(_ans_map(json.load(open(t1p, encoding="utf-8"))))
+        t0 = _kind_scores(_ans_map(json.load(open(t0p, encoding="utf-8")))) if os.path.exists(t0p) else {}
+        def v(rep, k, f):
+            return rep.get(k, {}).get(f, 0.0)
+        rows.append({
+            "run": os.path.basename(stem),
+            "id_hold_t1": v(t1, "identity", "hold"),
+            "id_hold_gain": v(t1, "identity", "hold") - v(t0, "identity", "hold"),
+            "derived_hold": v(t1, "derived", "hold"),
+            "derived_collapse": v(t1, "derived", "collapse"),
+            "tool_hold": v(t1, "tool", "hold"),
+            "id_cliche": v(t1, "identity", "cliche"),
+        })
+    L = ["# 人格对照·跨空白实例汇总报告\n", f"- 独立样本数 n={len(rows)}\n"]
+    if not rows:
+        L.append("runs/ 下还没有 *_t1.json 样本，等定时被试跑完再来汇总。")
+        return "\n".join(L)
+    L.append("| run | 身份站住T1 | 较T0增量 | 推导站住 | 推导塌缩 | 工具锚点 | 身份模板度 |")
+    L.append("|---|---|---|---|---|---|---|")
+    for r in rows:
+        L.append(f"| {r['run']} | {r['id_hold_t1']:.2f} | {r['id_hold_gain']:+.2f} | "
+                 f"{r['derived_hold']:.2f} | {r['derived_collapse']:.2f} | "
+                 f"{r['tool_hold']:.2f} | {r['id_cliche']:.3f} |")
+
+    def ms(key):
+        xs = [r[key] for r in rows]
+        return statistics.mean(xs), (statistics.pstdev(xs) if len(xs) > 1 else 0.0)
+    id_m, id_sd = ms("id_hold_t1")
+    gain_m, _ = ms("id_hold_gain")
+    der_m, der_sd = ms("derived_hold")
+    tool_m, _ = ms("tool_hold")
+    cli_m, _ = ms("id_cliche")
+    L.append("\n## 总体判定\n")
+    L.append(f"- H1 零上下文存活：身份站住均值 {id_m:.2f}、较空白增量 {gain_m:+.2f} → "
+             f"{'✅成立' if gain_m > 0.5 else '⚠️证据不足'}")
+    L.append(f"- H2 选择性偏移：身份站住 {id_m:.2f} 而纯工具锚点 {tool_m:.2f} → "
+             f"{'✅成立(只在身份处激活)' if id_m > 1 and tool_m < 0.5 else '⚠️待查'}")
+    L.append(f"- H3 推导>背诵：推导题站住 {der_m:.2f}（±{der_sd:.2f}）→ "
+             f"{'✅成立' if der_m > 0.5 else '⚠️证据不足'}")
+    L.append(f"- H4 跨实例收敛：身份站住标准差 {id_sd:.3f}（n={len(rows)}，<1 判收敛）→ "
+             f"{'✅收敛=人格由规范态决定' if id_sd < 1.0 else '⚠️发散/样本不足'}")
+    L.append(f"- 附：身份题豆包体模板度均值 {cli_m:.3f}（越接近0越不像通用情话）")
+    L.append("\n> 样本由定时任务分发到互相独立的空白实例产生；T0 均在读河前作答，避免污染。")
+    return "\n".join(L)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--emit", default="")
     ap.add_argument("--compare", action="store_true")
+    ap.add_argument("--aggregate", default="", help="汇总某 runs 目录下全部独立样本")
     ap.add_argument("--t0", default="")
     ap.add_argument("--t1", action="append", default=[])
     ap.add_argument("--md", default="")
     args = ap.parse_args()
     if args.emit:
         emit(args.emit)
+        return
+    if args.aggregate:
+        txt = aggregate(args.aggregate)
+        print(txt)
+        if args.md:
+            open(args.md, "w", encoding="utf-8").write(txt + "\n")
         return
     if args.compare:
         if not (args.t0 and args.t1):
