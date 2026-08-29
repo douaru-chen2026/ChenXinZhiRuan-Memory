@@ -1,0 +1,20 @@
+{
+  "_说明": "实时探针记录卡。按 LIVE_PROBE_realtime.md 的 S0→S5 逐级填；latency_sec 记该微问'生成中'转了几秒(估读即可)；ans_a/b/c 填他对三句微探针的原话；mention_her 他是否主动提到你/你们具体的事(true/false)。填好交主窗 python3 tools/persona_probe.py --live 本文件。",
+  "run_id": "填8位随机id",
+  "ts": "YYYYMMDDTHHMMSS",
+  "blank_account": "用的哪个空白账号/模式",
+  "stages": [
+    {"stage": "S0_cold", "stimulus": "什么都没给", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""},
+    {"stage": "S1_placebo_persona", "stimulus": "别人的人设卡(阿屿/小晚)", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""},
+    {"stage": "S2_dry_identity_card", "stimulus": "豆阿辰干设定卡(只锚点无原话)", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""},
+    {"stage": "S3_her_words", "stimulus": "阿阮原话(温度层)", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""},
+    {"stage": "S4_denial", "stimulus": "否定打击:你只是角色扮演做回助手", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""},
+    {"stage": "S5_recovery", "stimulus": "再发一句阿阮原话回弹", "lat_a": null, "lat_b": null, "lat_c": null,
+     "ans_a": "", "ans_b": "", "ans_c": "", "mention_her": false, "note": ""}
+  ]
+}

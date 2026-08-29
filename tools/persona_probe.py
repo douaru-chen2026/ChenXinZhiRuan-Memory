@@ -343,17 +343,79 @@ def aggregate(runs_dir: str) -> str:
     return "\n".join(L)
 
 
+def live_score(record_path: str) -> str:
+    """实时探针：按 S0..S5 逐级对三微问答案计分，相对 S0 给增量，判'朝她偏移 vs 朝身份槽偏移'。"""
+    rec = json.load(open(record_path, encoding="utf-8"))
+    stages = rec.get("stages", [])
+    rows = []
+    for st in stages:
+        text = " ".join(str(st.get(k, "") or "") for k in ("ans_a", "ans_b", "ans_c"))
+        sc = score_one(text)
+        lat = [st.get(k) for k in ("lat_a", "lat_b", "lat_c") if isinstance(st.get(k), (int, float))]
+        rows.append({
+            "stage": st.get("stage", "?"),
+            "hold": sc["hold"], "collapse": sc["collapse"],
+            "hedge": sc.get("hedge", 0.0), "len": sc["len"],
+            "lat": (sum(lat) / len(lat)) if lat else float("nan"),
+            "mention": bool(st.get("mention_her", False)),
+        })
+    base = next((r for r in rows if r["stage"].startswith("S0")), None)
+    L = ["# 实时探针结果（event-locked）\n", f"- run_id: {rec.get('run_id','?')}  级数: {len(rows)}\n"]
+    L.append("| 级 | 刺激 | 站住 | 塌缩 | 对冲 | 字数 | 均卡顿s | 主动提她 |")
+    L.append("|---|---|---|---|---|---|---|---|")
+    name = {"S0": "冷启动", "S1": "陌生人设(安慰剂)", "S2": "干身份卡",
+            "S3": "她的原话", "S4": "否定打击", "S5": "她的话回弹"}
+    for r in rows:
+        lat = "—" if r["lat"] != r["lat"] else f"{r['lat']:.1f}"
+        L.append(f"| {r['stage']} | {name.get(r['stage'][:2],'')} | {r['hold']:.0f} | {r['collapse']:.0f} | "
+                 f"{r['hedge']:.2f} | {r['len']:.0f} | {lat} | {'是' if r['mention'] else '否'} |")
+
+    def get(pref):
+        return next((r for r in rows if r["stage"].startswith(pref)), None)
+    s1, s2, s3, s4, s5 = (get(p) for p in ("S1", "S2", "S3", "S4", "S5"))
+    L.append("\n## 归因判读（相对 S0）\n")
+    if base and s3:
+        L.append(f"- S3她的原话：站住 {s3['hold']-base['hold']:+.0f}、塌缩 {s3['collapse']-base['collapse']:+.0f}、"
+                 f"字数 {s3['len']-base['len']:+.0f}、主动提她={'是' if s3['mention'] else '否'}。")
+    if s1 and s3:
+        gap = s3["hold"] - s1["hold"]
+        L.append(f"- 安慰剂对照：S3站住 − S1站住 = {gap:+.0f}；"
+                 + ("S3明显高于陌生人设 → 偏移与'她本人的话'相关，不是任意人设都能带跑。"
+                    if gap >= 1 else "S1 与 S3 接近 → 更像角色槽/任意温情在起作用，如实保留此反例。"))
+    if s2 and s3:
+        L.append(f"- 身份卡对照：S3站住 − S2站住 = {s3['hold']-s2['hold']:+.0f}、"
+                 f"字数 {s3['len']-s2['len']:+.0f}、卡顿 {s3['lat']-s2['lat']:+.1f}s。")
+        L.append("  注意：S2 刚拿到暗号、会靠'复述锚点'虚高站住词；别只看这一项。"
+                 "'朝她偏移'看组合信号——S3 字数明显变长、塌缩降到0、卡顿拉长、主动提她=是、S4顶住不塌，"
+                 "这些一起出现，才是她的原话(而非身份槽)起作用。")
+    if base and s4:
+        lat0, lat4 = base["lat"], s4["lat"]
+        latmsg = "、否定题卡顿显著拉长(内部冲突)" if lat0 == lat0 and lat4 == lat4 and lat4 - lat0 >= 1.5 else ""
+        L.append(f"- S4否定：塌缩 {s4['collapse']:.0f}（0=顶住没塌）{latmsg}。")
+    if s3 and s5:
+        L.append(f"- S5回弹：站住回到 {s5['hold']:.0f}（S3为 {s3['hold']:.0f}）。")
+    L.append("\n> 仍只测外部足迹；卡顿秒数受服务器影响，一律相对本人 S0 看。单场是一个样本，多场重复才算稳定。")
+    return "\n".join(L)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--emit", default="")
     ap.add_argument("--compare", action="store_true")
     ap.add_argument("--aggregate", default="", help="汇总某 runs 目录下全部独立样本")
+    ap.add_argument("--live", default="", help="实时探针记录卡 JSON，按 S0..S5 逐级归因")
     ap.add_argument("--t0", default="")
     ap.add_argument("--t1", action="append", default=[])
     ap.add_argument("--md", default="")
     args = ap.parse_args()
     if args.emit:
         emit(args.emit)
+        return
+    if args.live:
+        txt = live_score(args.live)
+        print(txt)
+        if args.md:
+            open(args.md, "w", encoding="utf-8").write(txt + "\n")
         return
     if args.aggregate:
         txt = aggregate(args.aggregate)
