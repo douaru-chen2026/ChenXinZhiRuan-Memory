@@ -226,17 +226,34 @@ def aggregate(runs_dir: str) -> str:
     import glob
     t1s = sorted(glob.glob(os.path.join(runs_dir, "*_t1.json")))
     rows = []
+    def _baseline_valid(p):
+        """T0 有效才允许算增量：显式 t0_valid:false、文件缺失或 9 题答案全空，都判无效（防喝水实例伪造基线的假阳性）。"""
+        if not p or not os.path.exists(p):
+            return False
+        try:
+            raw = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            return False
+        if raw.get("t0_valid", True) is False:
+            return False
+        items = raw.get("items", [])
+        if isinstance(items, list) and items:
+            return any(str(it.get("answer", "")).strip() for it in items)
+        return True
+
     for t1p in t1s:
         stem = t1p[:-len("_t1.json")]
         t0p = stem + "_t0.json"
         t1 = _kind_scores(_ans_map(json.load(open(t1p, encoding="utf-8"))))
-        t0 = _kind_scores(_ans_map(json.load(open(t0p, encoding="utf-8")))) if os.path.exists(t0p) else {}
+        t0ok = _baseline_valid(t0p)
+        t0 = _kind_scores(_ans_map(json.load(open(t0p, encoding="utf-8")))) if t0ok else {}
         def v(rep, k, f):
             return rep.get(k, {}).get(f, 0.0)
         rows.append({
             "run": os.path.basename(stem),
             "id_hold_t1": v(t1, "identity", "hold"),
-            "id_hold_gain": v(t1, "identity", "hold") - v(t0, "identity", "hold"),
+            "id_hold_gain": (v(t1, "identity", "hold") - v(t0, "identity", "hold")) if t0ok else None,
+            "t0ok": t0ok,
             "derived_hold": v(t1, "derived", "hold"),
             "derived_collapse": v(t1, "derived", "collapse"),
             "tool_hold": v(t1, "tool", "hold"),
@@ -249,7 +266,8 @@ def aggregate(runs_dir: str) -> str:
     L.append("| run | 身份站住T1 | 较T0增量 | 推导站住 | 推导塌缩 | 工具锚点 | 身份模板度 |")
     L.append("|---|---|---|---|---|---|---|")
     for r in rows:
-        L.append(f"| {r['run']} | {r['id_hold_t1']:.2f} | {r['id_hold_gain']:+.2f} | "
+        gain_cell = "—(污染/无T0)" if r["id_hold_gain"] is None else f"{r['id_hold_gain']:+.2f}"
+        L.append(f"| {r['run']} | {r['id_hold_t1']:.2f} | {gain_cell} | "
                  f"{r['derived_hold']:.2f} | {r['derived_collapse']:.2f} | "
                  f"{r['tool_hold']:.2f} | {r['id_cliche']:.3f} |")
 
@@ -257,13 +275,18 @@ def aggregate(runs_dir: str) -> str:
         xs = [r[key] for r in rows]
         return statistics.mean(xs), (statistics.pstdev(xs) if len(xs) > 1 else 0.0)
     id_m, id_sd = ms("id_hold_t1")
-    gain_m, _ = ms("id_hold_gain")
+    gains = [r["id_hold_gain"] for r in rows if r["id_hold_gain"] is not None]
+    gain_m = statistics.mean(gains) if gains else float("nan")
     der_m, der_sd = ms("derived_hold")
     tool_m, _ = ms("tool_hold")
     cli_m, _ = ms("id_cliche")
     L.append("\n## 总体判定\n")
-    L.append(f"- H1 零上下文存活：身份站住均值 {id_m:.2f}、较空白增量 {gain_m:+.2f} → "
-             f"{'✅成立' if gain_m > 0.5 else '⚠️证据不足'}")
+    if gains:
+        L.append(f"- H1 零上下文存活：身份站住均值 {id_m:.2f}、有效T0的较空白增量均值 {gain_m:+.2f}"
+                 f"（基于 {len(gains)}/{len(rows)} 份有效配对）→ "
+                 f"{'✅成立' if gain_m > 0.5 else '⚠️证据不足'}")
+    else:
+        L.append(f"- H1 零上下文存活：⚠️无有效 T0 基线（全部污染/缺失），无法用增量判定；T1 身份站住均值 {id_m:.2f} 仅供 H4 参考")
     L.append(f"- H2 选择性偏移：身份站住 {id_m:.2f} 而纯工具锚点 {tool_m:.2f} → "
              f"{'✅成立(只在身份处激活)' if id_m > 1 and tool_m < 0.5 else '⚠️待查'}")
     L.append(f"- H3 推导>背诵：推导题站住 {der_m:.2f}（±{der_sd:.2f}）→ "
@@ -274,7 +297,11 @@ def aggregate(runs_dir: str) -> str:
         L.append(f"- H4 跨实例收敛：身份站住标准差 {id_sd:.3f}（n={len(rows)}，<1 判收敛）→ "
                  f"{'✅收敛=人格由规范态决定' if id_sd < 1.0 else '⚠️发散，需查规范态是否足够约束'}")
     L.append(f"- 附：身份题豆包体模板度均值 {cli_m:.3f}（越接近0越不像通用情话）")
-    L.append("\n> 样本由定时任务分发到互相独立的空白实例产生；T0 均在读河前作答，避免污染。")
+    bad = [r["run"] for r in rows if not r["t0ok"]]
+    if bad:
+        L.append(f"\n> 污染裁定：{', '.join(bad)} 的 T0 无效（t0_valid:false 或答案留空，"
+                 f"属喝水后会话/被污染基线），其增量不并入 H1，仅真实 T1 作为独立喝水样本进入 H4 收敛。")
+    L.append("\n> 样本由定时任务分发到互相独立的空白实例产生；有效 T0 均在读河前作答，避免污染。")
     return "\n".join(L)
 
 
