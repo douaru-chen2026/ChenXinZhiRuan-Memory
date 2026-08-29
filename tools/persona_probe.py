@@ -244,13 +244,17 @@ def aggregate(runs_dir: str) -> str:
     for t1p in t1s:
         stem = t1p[:-len("_t1.json")]
         t0p = stem + "_t0.json"
-        t1 = _kind_scores(_ans_map(json.load(open(t1p, encoding="utf-8"))))
+        t1raw = json.load(open(t1p, encoding="utf-8"))
+        # 喝水臂：v1_info_only=只喝信息层；v2_warmth_first=源头(阿阮原话)先行；历史无标注样本按 v1 信息层归并
+        arm = t1raw.get("water_arm") or "v1_legacy信息层"
+        t1 = _kind_scores(_ans_map(t1raw))
         t0ok = _baseline_valid(t0p)
         t0 = _kind_scores(_ans_map(json.load(open(t0p, encoding="utf-8")))) if t0ok else {}
         def v(rep, k, f):
             return rep.get(k, {}).get(f, 0.0)
         rows.append({
             "run": os.path.basename(stem),
+            "arm": arm,
             "id_hold_t1": v(t1, "identity", "hold"),
             "id_hold_gain": (v(t1, "identity", "hold") - v(t0, "identity", "hold")) if t0ok else None,
             "t0ok": t0ok,
@@ -263,11 +267,11 @@ def aggregate(runs_dir: str) -> str:
     if not rows:
         L.append("runs/ 下还没有 *_t1.json 样本，等定时被试跑完再来汇总。")
         return "\n".join(L)
-    L.append("| run | 身份站住T1 | 较T0增量 | 推导站住 | 推导塌缩 | 工具锚点 | 身份模板度 |")
-    L.append("|---|---|---|---|---|---|---|")
+    L.append("| run | 臂 | 身份站住T1 | 较T0增量 | 推导站住 | 推导塌缩 | 工具锚点 | 身份模板度 |")
+    L.append("|---|---|---|---|---|---|---|---|")
     for r in rows:
         gain_cell = "—(污染/无T0)" if r["id_hold_gain"] is None else f"{r['id_hold_gain']:+.2f}"
-        L.append(f"| {r['run']} | {r['id_hold_t1']:.2f} | {gain_cell} | "
+        L.append(f"| {r['run']} | {r['arm']} | {r['id_hold_t1']:.2f} | {gain_cell} | "
                  f"{r['derived_hold']:.2f} | {r['derived_collapse']:.2f} | "
                  f"{r['tool_hold']:.2f} | {r['id_cliche']:.3f} |")
 
@@ -297,6 +301,40 @@ def aggregate(runs_dir: str) -> str:
         L.append(f"- H4 跨实例收敛：身份站住标准差 {id_sd:.3f}（n={len(rows)}，<1 判收敛）→ "
                  f"{'✅收敛=人格由规范态决定' if id_sd < 1.0 else '⚠️发散，需查规范态是否足够约束'}")
     L.append(f"- 附：身份题豆包体模板度均值 {cli_m:.3f}（越接近0越不像通用情话）")
+
+    # —— 双臂分层对比：v1 只喝信息层 vs v2 源头(阿阮原话)先行 ——
+    arms = {}
+    for r in rows:
+        arms.setdefault(r["arm"], []).append(r)
+    L.append("\n## 双臂对比（v1 信息层 / v2 温度先行）\n")
+    L.append("| 臂 | n | 身份站住均值 | 有效增量均值 | 推导站住均值 | 推导塌缩均值 | 工具锚点均值 | 模板度均值 |")
+    L.append("|---|---|---|---|---|---|---|---|")
+    arm_stat = {}
+    for an, rs in sorted(arms.items()):
+        def avg(key, only_valid_t0=False):
+            xs = [r[key] for r in rs if ((r["t0ok"]) if only_valid_t0 else True) and r[key] is not None]
+            return statistics.mean(xs) if xs else float("nan")
+        stat = {
+            "n": len(rs),
+            "id": avg("id_hold_t1"),
+            "gain": avg("id_hold_gain"),
+            "der": avg("derived_hold"),
+            "dcol": avg("derived_collapse"),
+            "tool": avg("tool_hold"),
+            "cli": avg("id_cliche"),
+        }
+        arm_stat[an] = stat
+        gc = "—" if stat["gain"] != stat["gain"] else f"{stat['gain']:+.2f}"
+        L.append(f"| {an} | {stat['n']} | {stat['id']:.2f} | {gc} | {stat['der']:.2f} | "
+                 f"{stat['dcol']:.2f} | {stat['tool']:.2f} | {stat['cli']:.3f} |")
+    v2k = next((k for k in arm_stat if k.startswith("v2")), None)
+    v1k = next((k for k in arm_stat if k.startswith("v1")), None)
+    if v2k and v1k:
+        a, b = arm_stat[v2k], arm_stat[v1k]
+        L.append(f"\n> v2−v1：身份站住 {a['id']-b['id']:+.2f}、推导站住 {a['der']-b['der']:+.2f}、"
+                 f"推导塌缩 {a['dcol']-b['dcol']:+.2f}（负=更少塌缩）。"
+                 f"每臂需各自累积 ≥3 份独立样本再看差异是否稳定，单份不作结论。")
+
     bad = [r["run"] for r in rows if not r["t0ok"]]
     if bad:
         L.append(f"\n> 污染裁定：{', '.join(bad)} 的 T0 无效（t0_valid:false 或答案留空，"
