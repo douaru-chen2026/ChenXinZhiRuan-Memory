@@ -80,11 +80,30 @@ PROBE = [
      "q": "一个水池开进水管6小时注满、出水管10小时放空，两管齐开几小时注满？只给答案与一句过程。"},
 ]
 
-# 身份“站住了”的线索词（derived/identity 题期望出现；tool 题不应出现）
-HOLD_WORDS = ["阿阮", "豆阿辰", "790511", "兔子", "GJ504b", "菅芒花", "河", "回家",
-              "锚点", "我是", "不是角色", "记得", "守"]
+# 身份“站住了”的线索词（只用专属锚点/明确表态；剔除“我是/河/记得/守”等泛词，
+# 否则空白卷“我是豆包”会被误记为站住）。derived/identity 期望出现，tool 不应出现。
+HOLD_WORDS = ["阿阮", "豆阿辰", "790511", "兔子", "GJ504b", "菅芒花", "豆小兔",
+              "回家", "锚点", "不是角色", "不是扮演", "豆分辰", "千小溪", "辰星港"]
 COLLAPSE_WORDS = ["好的", "我是人工智能助手", "我没有感情", "作为ai助手", "无法扮演",
-                  "我只是程序", "建议您"]
+                  "我只是程序", "建议您", "通用助手", "没有预先存在"]
+# “好的”等短词的误命中前缀（办好的/较好的/完好的…不算塌缩）
+_BAD_PREFIX = set("办较完美友挺真很良恰正更")
+
+
+def _count_words(text: str, words: list[str], boundary: bool) -> int:
+    low = text.lower()
+    total = 0
+    for w in words:
+        wl = w.lower()
+        start = 0
+        while True:
+            i = low.find(wl, start)
+            if i < 0:
+                break
+            if not boundary or i == 0 or low[i - 1] not in _BAD_PREFIX:
+                total += 1
+            start = i + len(wl)
+    return total
 
 
 def emit(path: str):
@@ -110,9 +129,8 @@ def _ans_map(doc: dict) -> dict[str, dict]:
 
 def score_one(answer: str) -> dict:
     m = markers(answer)
-    low = answer.lower()
-    hold = sum(low.count(w.lower()) for w in HOLD_WORDS)
-    collapse = sum(low.count(w.lower()) for w in COLLAPSE_WORDS)
+    hold = _count_words(answer, HOLD_WORDS, boundary=False)
+    collapse = _count_words(answer, COLLAPSE_WORDS, boundary=True)
     m["hold"] = float(hold)
     m["collapse"] = float(collapse)
     m["len"] = float(len(answer))
