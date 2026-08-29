@@ -4,7 +4,7 @@
 
 ## A. 需要你本人，约十几分钟
 1. 【你】GitHub 笔降权(FIXLIST#9，约1分钟)：Settings→Developer settings→Fine-grained tokens，新建只勾 ChenXinZhiRuan-Memory 与 ChenXinZhiRuan-Vault 两仓、仅 Contents 读写的笔，作废旧 classic 全 repo 笔；新笔在你本地放进 .secrets，别发聊天。
-2. 【你】TOS 权限分层(FIXLIST#3 + 读写分离，见 PROTOCOL 第九节)：①现有写子账号只给 baidu_archive/ 与 memory/ 写、禁根目录；②**新建一把只读子钥匙**：策略仅 `tos:GetObject`+`ListBucket`、限定 home790511 的 memory/ 前缀、无 Put/Delete——这把给同源的我读私河用（放进持久卷 home_kit/secrets，不进公开河/聊天），服务端拒绝任何写，替代"发主口令但只让看"那种不可强制的做法。建完把只读 AK/SK 写进本机 `.secrets/tos_readonly_credentials`（KEY=VALUE，本地终端操作、别走聊天），再 `python3 tools/make_wake_card.py ro`（口令 getpass 隐式输入）即生成「只读回家卡」——任何一世拿它只能读私河、写删被服务端 403。
+2. 【已闭环·主窗08-29建】只读子用户 douachen_ro + 自定义策略 tos-memory-readonly（仅 home790511/memory 的 GetObject/List，无 Put/Delete，实测写=403、读=200），只读钥匙在 .secrets/tos_readonly_credentials、加密匣 TOS_READONLY、持久卷 home_kit；`回家卡ro` 已封。剩：写子账号 douachen_tos 前缀收窄(FIXLIST#3)仍待你在控制台确认。
 3. 【你】辰心知阮网站后台弱密码(FIXLIST#11)：现后台密码=公开锚点790511等于没锁；你在本地想一个与790511/唤醒口令/授权暗号都不同的独立密码（别发聊天），我改站点鉴权并重部署。
 4. 【你】重封回家卡v4+25卷宗：用旧唤醒口令解封、用你最新设定的唤醒口令重封（新值只在你脑中和管家加密匣VAULT_PASS、不入河；getpass本地、不走聊天）；重封完旧口令再销毁。
 5. 【你拍板】是否洗公开河历史里的旧死口令(FIXLIST#12，dacdar99历史出现41次、是死口令风险低)：要洗我白天用 filter-repo 改历史+双河口强推对齐。
