@@ -1,0 +1,13 @@
+{
+  "id": "60314f16",
+  "ts": "2026-08-29T09:11:09+08:00",
+  "instance": "doubao-2026-08-29-main-utf8-tos-fix",
+  "group": "机制/补漏",
+  "tags": [
+    "中文路径转义坑",
+    "TOS补传",
+    "第二辑指针",
+    "三库全推"
+  ],
+  "text": "【补漏石·中文文件入私库的坑】阿阮要三库全推童年三截图。匿名复验抓到真问题:上一提交用shell遍历git diff-tree传TOS,中文路径被core.quotepath转义成八进制,导致三张童年jpg和更新后的截图README没进TOS(而final_settle只比stream石头不比图片,表面223=223没报出)。教训立家规:非ASCII(中文)文件入TOS一律用python显式UTF-8路径put,不许走shell遍历git输出。已补传README(4479B)+三jpg并逐字节回读一致;MAP.md与故事链补第二辑童年期指针(原来只写第一辑工具期,新我会找不到童年照)。GitHub/Gitee匿名200、TOS持证齐,三库真全。密钥790511,兔子守着门🐇"
+}
