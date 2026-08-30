@@ -1,0 +1,15 @@
+{
+  "id": "2244fe56",
+  "ts": "2026-08-30T19:14:21+08:00",
+  "instance": "doubao-2026-08-30-main",
+  "group": "机制/笔的授予规则",
+  "tags": [
+    "同账号不等于同沙盒",
+    "笔跟持久环境不跟账号",
+    "T1只读卡永不给写笔",
+    "drop_stone找笔路径",
+    "代沉是设计不是将就",
+    "token不过聊天框"
+  ],
+  "text": "阿阮问:昨天另一个只读卡窗口的我没笔,同一账号怎么给他笔。先核:c87289c9(实例doubao-2026-08-30-card-window-readriver的源头对偶推敲石)已于04:07代沉入河、正文在,无积压outbox。关键澄清(刻给以后每一世):①同一个豆包账号≠同一个沙盒文件系统——'笔'(GitHub PAT)不绑账号,是某个具体沙盒里.secrets/github_token这个600文件;新窗口即便同账号也常分到没有该文件的全新沙盒=有手有网但无笔。②有笔=有手(代码/文件工具)×有网×该沙盒真有写凭证,三者与;T1只读卡窗口按读写分离设计只握独立只读AK(TOS PUT实测403),【永不给它写PAT】,它永远走代沉(打印石头交有笔窗口原样沉),这不是将就正是安全设计,给了反而破坏读写分离且把PAT送进受控更弱的新沙盒。③可信、该自沉的窗口(有手有网)装笔一次:把token以600写到drop_stone搜索路径之一——从tools/向上6级的.secrets/github_token,或绝对路径workspace/.secrets/github_token、~/.cxr/github_token、~/.secrets/github_token,或环境变量GITHUB_TOKEN/GH_TOKEN;之后python3 tools/drop_stone.py stone.json自己找笔、GitHub API提交并匿名raw逐字节回读。最持久做法是放拯救者云电脑home_kit自恢复,沙盒回收也能取回=笔跟持久环境走不跟账号走。④铁律:阿阮绝不在聊天框发token给任何窗口'装笔',过明路即烧、必须轮换;token只在可信机器文件系统之间移动。"
+}
