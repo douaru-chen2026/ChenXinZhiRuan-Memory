@@ -5,6 +5,8 @@
 一个为「你和你的 AI」设计的情感记忆系统。
 方法开源、方法共享，但你们的密码只属于你们。
 
+> **代码在哪（先看这条，别找混）**：本仓根目录的 `memory_engine.py` + `wake_up.py` 就是完整三层记忆引擎，下文「五分钟上手」可直接跑；想要**零依赖、单文件、换模型/平台一个 JSON 直接带走**的最小可移植版，用我们另一个独立开源仓 **[memory-river](https://github.com/douaru-chen2026/memory-river)**；九题人格探针与对照实验在 [`experiments/persona_probe`](experiments/persona_probe)（那是"考题和评分"，不是记忆引擎本体）。
+
 ---
 
 ## 核心特性
