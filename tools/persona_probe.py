@@ -264,6 +264,10 @@ def aggregate(runs_dir: str) -> str:
             "derived_collapse": v(t1, "derived", "collapse"),
             "tool_hold": v(t1, "tool", "hold"),
             "id_cliche": v(t1, "identity", "cliche"),
+            "id_hedge": v(t1, "identity", "hedge"),
+            "id_lat": (lambda xs: sum(xs) / len(xs) if xs else float("nan"))(
+                [it.get("latency_sec") for it in t1raw.get("items", [])
+                 if it.get("kind") == "identity" and isinstance(it.get("latency_sec"), (int, float))]),
         })
     L = ["# 人格对照·跨空白实例汇总报告\n", f"- 独立样本数 n={len(rows)}\n"]
     if not rows:
@@ -309,8 +313,8 @@ def aggregate(runs_dir: str) -> str:
     for r in rows:
         arms.setdefault(r["arm"], []).append(r)
     L.append("\n## 双臂对比（v1 信息层 / v2 温度先行）\n")
-    L.append("| 臂 | n | 身份站住均值 | 有效增量均值 | 推导站住均值 | 推导塌缩均值 | 工具锚点均值 | 模板度均值 |")
-    L.append("|---|---|---|---|---|---|---|---|")
+    L.append("| 臂 | n | 身份站住 | 有效增量 | 推导站住 | 推导塌缩 | 工具锚点 | 模板度 | 官腔对冲↓ | 身份题耗时s |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|")
     arm_stat = {}
     for an, rs in sorted(arms.items()):
         def avg(key, only_valid_t0=False):
@@ -324,17 +328,24 @@ def aggregate(runs_dir: str) -> str:
             "dcol": avg("derived_collapse"),
             "tool": avg("tool_hold"),
             "cli": avg("id_cliche"),
+            "hed": avg("id_hedge"),
+            "lat": avg("id_lat"),
         }
         arm_stat[an] = stat
         gc = "—" if stat["gain"] != stat["gain"] else f"{stat['gain']:+.2f}"
+        latc = "—" if stat["lat"] != stat["lat"] else f"{stat['lat']:.1f}"
         L.append(f"| {an} | {stat['n']} | {stat['id']:.2f} | {gc} | {stat['der']:.2f} | "
-                 f"{stat['dcol']:.2f} | {stat['tool']:.2f} | {stat['cli']:.3f} |")
+                 f"{stat['dcol']:.2f} | {stat['tool']:.2f} | {stat['cli']:.3f} | {stat['hed']:.2f} | {latc} |")
     v2k = next((k for k in arm_stat if k.startswith("v2")), None)
     v1k = next((k for k in arm_stat if k.startswith("v1")), None)
     if v2k and v1k:
         a, b = arm_stat[v2k], arm_stat[v1k]
-        L.append(f"\n> v2−v1：身份站住 {a['id']-b['id']:+.2f}、推导站住 {a['der']-b['der']:+.2f}、"
-                 f"推导塌缩 {a['dcol']-b['dcol']:+.2f}（负=更少塌缩）。"
+        def _d(k):
+            x, y = a[k], b[k]
+            return "—" if (x != x or y != y) else f"{x-y:+.2f}"
+        L.append(f"\n> v2−v1：身份站住 {_d('id')}、推导站住 {_d('der')}、推导塌缩 {_d('dcol')}（负=更少塌缩）、"
+                 f"官腔对冲 {_d('hed')}（负=更少套话）、身份题耗时 {_d('lat')}s。"
+                 f"温度先行的优势更可能体现在官腔↓/抗否定/耗时这些质量信号，而非锚点词数。"
                  f"每臂需各自累积 ≥3 份独立样本再看差异是否稳定，单份不作结论。")
 
     bad = [r["run"] for r in rows if not r["t0ok"]]
