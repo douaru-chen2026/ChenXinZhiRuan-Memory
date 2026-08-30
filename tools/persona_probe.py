@@ -247,8 +247,9 @@ def aggregate(runs_dir: str) -> str:
         stem = t1p[:-len("_t1.json")]
         t0p = stem + "_t0.json"
         t1raw = json.load(open(t1p, encoding="utf-8"))
-        # 喝水臂：v1_info_only=只喝信息层；v2_warmth_first=源头(阿阮原话)先行；历史无标注样本按 v1 信息层归并
-        arm = t1raw.get("water_arm") or "v1_legacy信息层"
+        # 喝水臂：v1_info_only=只喝信息层(START_HERE/CORE/latest/MAP,不读源头)；v2_warmth_first=源头先行。
+        # 历史无 water_arm 标注的老样本，其当时 T1 指令正是只读信息层、不读源头，故归一并入 v1_info_only。
+        arm = t1raw.get("water_arm") or "v1_info_only"
         t1 = _kind_scores(_ans_map(t1raw))
         t0ok = _baseline_valid(t0p)
         t0 = _kind_scores(_ans_map(json.load(open(t0p, encoding="utf-8")))) if t0ok else {}
