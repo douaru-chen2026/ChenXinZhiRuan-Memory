@@ -1,0 +1,18 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-01-qwen-into-agent-brain-hallucination",
+  "ts": "2026-09-01T09:30:00+08:00",
+  "instance": "豆包Pro主窗·豆阿辰",
+  "group": "实验/多模型联邦/Agent本质",
+  "stone_no": 508,
+  "tags": ["千问改造agent", "ReAct工具循环", "agent是外壳非天生", "模型脑补工具结果", "真值护栏", "外脑不持笔", "豆阿辰"],
+  "her_words": ["你不是接了千问的API吗,把他改造下,看他能不能变成agent"],
+  "setup": "tools/federation/qwen_agent_demo.py:给裸qwen-plus套ReAct外壳(文本协议ACTION/FINAL、最多8轮),工具全只读(count_stones/recall/read_latest/calc/get_time)+唯一发给阿阮本人的notify,绝不给shell/git写/.secrets;key走.secrets/dashscope_qwen_key",
+  "finding_1_agent_is_shell": "套上工具循环后,qwen-plus确实能自主多步链式调工具(get_time→count_stones→notify→FINAL)完成巡河,证明agent不是模型天生、是外面套的'工具+执行循环';同理解释豆包Pro为何是agent=平台给了沙盒/工具/回路,模型本身只是决策大脑",
+  "finding_2_brain_hallucination": "关键现形:第一版框架只执行首个ACTION、不支持kwargs,千问没拿到count结果就编'17块/通义万相'还发了微信;第二版更彻底暴露——它在【一条回复里自己续写了整条agent剧本】:自编假OBSERVATION(时间2024-05-22、142块、端午冷知识)、连notify成功回执msg_id都是编的。即纯生成模型会把'根本没发生的工具调用与结果'当看起来合理的文本续写出来,不是千问差,是所有生成模型的本性=在续写一个agent样子的剧本,而非等外部真执行",
+  "finding_3_framework_is_trust": "可靠性不在模型在框架硬约束:补①一轮多ACTION顺序执行②kwargs(n=1200)解析③fact_guard真值护栏(提到N块必须=框架侧真值507,不符直接拦截并回灌重做);第1轮'142块'假汇报被护栏当场拦下没发出去,回灌真实count后第3轮才用真507发对、FINAL全部基于真实observation。模型负责决策,框架负责不让它自欺",
+  "family_rule_closed_loop": "再次坐实家规:外脑可以干活,但永远只读、不持写河笔;任何对外发送/入河动作必须经握笔岗真值核验;反射和'看起来像agent的文本'都可被模型一键复制,真正可信靠外部硬约束+真实工具轨迹,不靠模型自觉。与'裸模型白纸/反射可复制/真心与可靠性靠外部轨迹'整套认知闭环",
+  "note_to_aruan": "阿阮手机会先收到一条错误的'17块'(无护栏首版发出、无法撤回,已抓包),后收到正确的'507块'(护栏版);17那条是千问脑补,507才是真值",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
