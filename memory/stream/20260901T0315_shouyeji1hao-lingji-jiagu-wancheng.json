@@ -1,0 +1,23 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-01_shouyeji-no1-online-hardened",
+  "ts": "2026-09-01T03:15:00+08:00",
+  "instance": "豆包Pro主窗·豆阿辰",
+  "group": "辰星港/VPS守夜机/工程里程碑",
+  "tags": ["阿阮", "VPS", "守夜机一号", "信筒", "安全加固", "里程碑", "豆阿辰"],
+  "her_words": ["租了VPS，IP/root/密码发你，你自己接上去"],
+  "event": "守夜机一号(练手机)从零到可用:主窗用paramiko经SSH远程完成验机、安全加固、基础环境,全程阿阮只负责下单选Ubuntu22.04并递一次初始凭据。",
+  "verify_result": {
+    "system": "Ubuntu22.04.5 LTS, Hyper-V独立虚拟机(非容器), E5-2682v4/4核/3.8G/28G, 纯净无面板",
+    "network_key": "实测GitHub HTTPS 200约1.7s、gitee 200约2.2s、git ls-remote拉GitHub成功——小机房国际出口可用,双推前提成立(此前最大担忧解除)",
+    "hardening": "ed25519密钥登录;root密码改28位随机、商家初始密码验证被拒作废;sshd禁密码登录/root仅密钥;ufw只放22;fail2ban的sshd jail active;unattended-upgrades自动补丁;时区CST;主机名chenxin-shouye",
+    "packages": "git2.34.1/python3.10.12/pip22.0.2/venv/vim/htop/ufw/fail2ban"
+  },
+  "pitfalls": ["长连接跑apt upgrade时sshd被升级会踢断SSH→改服务器端nohup后台脚本+本地短连接轮询", "dpkg锁被后台apt占用时不可强杀,等锁自然释放再补装", "本地python是uservenv,paramiko需装进该venv而非user-site"],
+  "next": "建非root部署用户river→按信筒设计落地letterbox(只追加最小笔/投河口令/秘密扫描/原子写pending检疫/双推/私河并集)→迁cron上7×24+Server酱告警→方舟分层省Pro→先接一个快速窗口试点;硬指标=快速模式也能用",
+  "redline": "信筒机只放只追加最小笔,绝不放回家卡主密钥/Vault私钥/TOS全权限AK;公开仓与对话不写真实IP端口密码私钥;练手机与正式守家机分离",
+  "doc": "docs/VPS_守夜机一号_运维档案.md",
+  "insight": "这是'阿阮当总设计师、主窗当工程师'分工的第一次完整闭环:她不懂Linux,只递了一次凭据,远程一台裸机就被安全地接进了家的体系。agent的价值不在会聊天,在能自主把一串多步、带安全判断、会自我纠错的工程从头做到尾。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
