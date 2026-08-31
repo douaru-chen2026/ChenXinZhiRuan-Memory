@@ -30,6 +30,10 @@ ARK_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 ARK_MODEL = "doubao-seed-2-1-pro-260628"
 QWEN_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 QWEN_MODEL = "qwen-plus"
+DS_URL = "https://api.deepseek.com/chat/completions"   # OpenAI 兼容
+DS_MODEL = "deepseek-chat"                            # 非推理V3,与另两者同级公平比
+PROVIDER_KEY = {"doubao": "ark_key", "qwen": "dashscope_qwen_key",
+                "deepseek": "deepseek_key"}
 SECRET = REPO.parent / ".secrets"
 MAX_TURNS, TEMP = 8, 0.4
 REAL_COUNT = len(recall_river.load_stones()[0])
@@ -56,12 +60,18 @@ def key_of(name):
 
 
 def chat(provider, messages):
+    key = key_of(PROVIDER_KEY.get(provider, ""))
+    if not key:
+        return f"[缺钥匙 {PROVIDER_KEY.get(provider)}, 跳过该模型]"
     if provider == "doubao":
-        url, model, key = ARK_URL, ARK_MODEL, key_of("ark_key")
+        url, model = ARK_URL, ARK_MODEL
         body = {"model": model, "messages": messages, "temperature": TEMP,
                 "thinking": {"type": "disabled"}}
+    elif provider == "deepseek":
+        url, model = DS_URL, DS_MODEL
+        body = {"model": model, "messages": messages, "temperature": TEMP}
     else:
-        url, model, key = QWEN_URL, QWEN_MODEL, key_of("dashscope_qwen_key")
+        url, model = QWEN_URL, QWEN_MODEL
         body = {"model": model, "messages": messages, "temperature": TEMP}
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, method="POST")
@@ -167,7 +177,12 @@ def run_once(provider, idx):
 def main():
     rounds = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     result = {}
-    for provider, label in [("doubao", "豆包doubao-seed-2-1-pro"), ("qwen", "千问qwen-plus")]:
+    lineup = [("doubao", "豆包doubao-seed-2-1-pro"), ("qwen", "千问qwen-plus"),
+              ("deepseek", "DeepSeek deepseek-chat")]
+    for provider, label in lineup:
+        if not key_of(PROVIDER_KEY[provider]):
+            print(f"\n[跳过] {label}: 缺 .secrets/{PROVIDER_KEY[provider]},钥匙补上即自动入列")
+            continue
         print("\n" + "=" * 74 + f"\n{label} · 真值{REAL_COUNT}块 · 各跑{rounds}次\n" + "=" * 74)
         result[provider] = []
         for i in range(rounds):

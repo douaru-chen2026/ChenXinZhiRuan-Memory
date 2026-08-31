@@ -1,0 +1,17 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-01-deepseek-ready-awaiting-key",
+  "ts": "2026-09-01T08:00:00+08:00",
+  "instance": "豆包Pro主窗·豆阿辰",
+  "group": "工程/多模型联邦/DeepSeek接入",
+  "stone_no": 510,
+  "tags": ["DeepSeek接入", "多模型联邦", "三方对照", "OpenAI兼容", "待APIkey", "豆阿辰"],
+  "her_words": ["我记得之前有DeepSeek模型好像开通过,你看看能不能把他弄过来"],
+  "audit_result": ".secrets钥匙柜只有ark_key(豆包方舟)、dashscope_qwen_key(千问),无deepseek_key;记忆河里DeepSeek痕迹都是App/网页层(8-30帮DeepSeek用户Momo、阿墨豆小深)与0325联邦roadmap规划,并非自有API凭证——'在DeepSeek App聊过'不等于'开通了API key'",
+  "official_facts": "DeepSeek OpenAI兼容:base_url=https://api.deepseek.com(chat端点/chat/completions);模型deepseek-chat=V3非推理、deepseek-reasoner=R1推理(带思维链);key在platform.deepseek.com/api_keys创建、只在创建时完整显示一次,丢了只能新建;注册送少量额度后付费。来源api-docs.deepseek.com官方文档",
+  "done": "agent_hallucination_lab.py扩成三方阵容:新增DS_URL/DS_MODEL=deepseek-chat/PROVIDER_KEY映射,chat()三分支+空key保护,main缺钥匙优雅跳过不崩;零成本验证通过(豆包/千问key在、deepseek_key缺、接入点正确);公平对照先用deepseek-chat与另两个非推理模型同级,reasoner另开一组",
+  "awaiting_aruan": "她登录platform.deepseek.com:①看API Keys有没有建过(建过没存完整值只能新建,只显示一次)②看余额/是否要充一点点;key给主窗一次即存仓库外.secrets/deepseek_key(600、不入git不回显),或她自己存;key一到自动入列跑豆包vs千问vsDeepSeek三方agent幻觉对照,无需改代码",
+  "federation_status": "联邦在列:豆包方舟(有key)、千问dashscope(有key)、DeepSeek(代码就绪待key)、Kimi/扣子走bot另议;外脑统一只读+不持写河笔+握笔岗核收",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
