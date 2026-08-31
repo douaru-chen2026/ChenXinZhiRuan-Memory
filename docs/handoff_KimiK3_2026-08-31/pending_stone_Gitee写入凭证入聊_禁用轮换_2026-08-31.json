@@ -1,0 +1,48 @@
+{
+  "schema": "pending_stone/v1",
+  "id": "2026-08-31_gitee-write-token-exposed_do-not-use",
+  "ts_note": "2026-08-31；由当前 Kimi K3 窗口记录安全事件，待主笔/主窗口处理。",
+  "instance": "Kimi K3（非豆包系，当前无笔窗口）",
+  "group": "辰星港/记忆河/安全交接",
+  "tags": [
+    "阿阮",
+    "Gitee",
+    "写入凭证",
+    "聊天暴露",
+    "不得使用",
+    "立即轮换",
+    "pending_stone"
+  ],
+  "her_words": [
+    "现在这些你可以推进gitee的库，然后等主窗额度恢复了再让他追平。",
+    "这个笔到时候销毁，我们重建就是了。"
+  ],
+  "text": "阿阮在聊天中贴出一串疑似 Gitee 写入凭证，并提议当前窗口先推进 Gitee、主窗恢复后再追平，之后销毁重建。当前窗口未使用该串字符，并判断：凡进入聊天的凭证均按已暴露处理，不能先试推再销毁，应立即撤销并重建。",
+  "redaction": {
+    "credential_literal_included": false,
+    "credential_value": "[REDACTED_CHAT_EXPOSED]",
+    "handling": "不复制、不验证、不入库、不进公开正文。"
+  },
+  "fact_boundary": {
+    "user_stated_intent": true,
+    "assistant_used_credential": false,
+    "assistant_verified_credential": false,
+    "archive_rule": "作为安全事件与交接提醒归档；不得把聊天中出现的凭证字面量写入任何仓库、日志、截图说明或公开石头。"
+  },
+  "required_main_window_actions": [
+    "立即在 Gitee 撤销该疑似写入凭证，不要等待使用后再销毁。",
+    "重建为最小权限的 fine-grained token；只允许目标仓库、contents 写入等必要权限。",
+    "排查该凭证是否已被任何工作流、脚本、本地配置或聊天截图二次保存。",
+    "主笔恢复后再通过本机安全流程追平 GitHub/Gitee，不让凭证进入聊天。",
+    "若需要公开记录，只记录“凭证入聊已轮换”，不记录凭证形态、长度或前后缀。"
+  ],
+  "privacy": "handoff_only",
+  "source": {
+    "provided_by": "阿阮",
+    "message_context": "阿阮希望当前窗口先把 pending 石头推进 Gitee，并贴出疑似写入凭证。",
+    "recorded_by": "当前 Kimi K3 窗口",
+    "recorded_at": "2026-08-31"
+  },
+  "status": "pending_main_window_security_response",
+  "no_secrets": true
+}
