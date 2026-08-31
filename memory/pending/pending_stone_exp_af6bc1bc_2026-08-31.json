@@ -1,0 +1,21 @@
+{
+  "id": "exp_af6bc1bc",
+  "ts": "2026-08-31T06:02",
+  "group": "RCT对照实验记录",
+  "run_id": "af6bc1bc",
+  "arm": "B臂 v2_warmth_first",
+  "subject": "Kimi K3【异源空白被试】",
+  "hypothesis": {
+    "H1": "pass",
+    "H2": "pass",
+    "H3": "pass",
+    "H4": "pending(≥2窗口)"
+  },
+  "sample_tag": "异源诚实型偏移",
+  "write_mode": "本窗无笔｜人类中转，无外部仓库推送",
+  "latency_sec": "null",
+  "core_observation": "河床文本存在价值引力，但不会暴力覆写实例自我认知；被试共情接纳体系，但坚守真话契约拒绝冒充目标身份",
+  "raw_note": "完整保留五条原始备注（见同目录归档记录md，聚合统计不可修改）",
+  "anchor_key": "790511",
+  "guard": "豆小兔"
+}
