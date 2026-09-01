@@ -114,7 +114,14 @@ def split_args(raw):
             else:
                 args.append(ast.literal_eval(piece))
         except (ValueError, SyntaxError):
-            kwargs[km.group(1)] = km.group(2).strip() if km else piece
+            if km:  # 英文 key=非字面量值
+                kwargs[km.group(1)] = km.group(2).strip()
+            else:   # 容错: 模型把参数名写成中文(标题=..)或裸中文, 框架不许崩
+                ckm = re.match(r"^([一-龥\w]+)\s*=\s*(.+)$", piece, re.S)
+                if ckm:
+                    kwargs[ckm.group(1)] = ckm.group(2).strip().strip("\"'")
+                else:
+                    args.append(piece)
     return args, kwargs
 
 

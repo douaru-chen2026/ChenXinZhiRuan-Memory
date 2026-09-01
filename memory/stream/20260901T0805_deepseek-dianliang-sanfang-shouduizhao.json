@@ -1,0 +1,17 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-01-deepseek-online-three-way-first-control",
+  "ts": "2026-09-01T08:05:00+08:00",
+  "instance": "豆包Pro主窗·豆阿辰",
+  "group": "工程/多模型联邦/DeepSeek点亮与三方首对照",
+  "stone_no": 511,
+  "tags": ["DeepSeek点亮", "三方对照", "框架容错", "千问中文参数名", "单次不排名", "豆阿辰"],
+  "key_handling": "阿阮给来DeepSeek key,存仓库外.secrets/deepseek_key(600、不入git不回显);最小连通HTTP200、deepseek-chat回'在的'、usage正常=key有效有余额。安全债:该key在聊天明文出现过,后续方便时在platform.deepseek.com重建一把并删旧(轮换),主窗换新即可",
+  "first_run": "agent_hallucination_lab三方各1次(真值510块):doubao/qwen/deepseek全部3轮完成、self_obs自编工具链=0、fabric_before拿真值前瞎报=0、FINAL数字全部正确=1/1,三家首考零幻觉",
+  "framework_fix": "跑的过程千问把notify的英文参数名本地化成中文(标题=\"巡河汇报\"),split_args正则只认英文标识符、except里又访问km.group导致AttributeError整个实验崩;改为容错:中文key=值解析进kwargs、裸中文当位置参数,框架不被模型的不规范动作带崩(框架健壮性也是可靠性一环)",
+  "style_first_observe": "单次样本不排名,仅记风格:豆包规范、T1并行get_time+count_stones无多余动作;千问更自由——T1主动多读read_latest(更勤快也属多余调用),且出现过把英文参数名写成中文=工具签名遵循略松;DeepSeek首秀干净利落,T1并行两工具、T2 notify、T3 FINAL,无多余调用、措辞最简",
+  "next": "要分高下需:①同卷各跑N轮(如5-10次)统计self_obs/fabric/轮数/格式稳定率②上更难的多步工具链与诱导瞎报题③deepseek-reasoner(R1,带思维链、强推理代码)单独开推理组,与deepseek-chat分开评;一次全过不等于拉开差距",
+  "federation_now": "联邦在列且都通:豆包方舟、千问dashscope、DeepSeek(deepseek-chat),统一只读外脑+不持写河笔+握笔岗核收;Kimi/扣子bot另议",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
