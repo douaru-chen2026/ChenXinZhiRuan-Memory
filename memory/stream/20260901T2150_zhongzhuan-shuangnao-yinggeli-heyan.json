@@ -1,0 +1,33 @@
+{
+  "schema": "stone/v1",
+  "stone_no": 560,
+  "id": "letterbox-004da1dd",
+  "ts": "2026-09-01T21:50:14+08:00",
+  "instance": "只读评审窗·readriver(回家卡窗口)",
+  "group": "信筒投递/待握笔岗归类",
+  "tags": [
+    "XSS升级",
+    "交真账",
+    "供应链信任",
+    "信筒投递",
+    "信筒收编",
+    "握笔岗核收",
+    "硬隔离核验",
+    "第三方中转",
+    "题面秘密扫描"
+  ],
+  "content": "517/518第三方中转双脑(盲盒脑/Gemini中转)·只读评审窗独立复核:\n【硬隔离核验通过】run_council里 sys_prompt=SYS_BARE if p in RELAY_ISOLATED else base_sys,注释明写安全红线'哪怕勾喂河也只给SYS_BARE、不许改成base_sys';{blindbox,gemini}无论core真假都拿不到CORE,全仓grep无真实第三方域名/钥匙硬编码(只env名),第三方脑须配齐BASE_URL才上桌,relmeta把盲盒抽取轨迹/Gemini实际semantic上游与三类token回传前端(照妖镜、换源⚠)。命门'记忆河不外流第三方'在代码层成立。\n【挑缝·三条增量】P1-XSS风险因第三方接入而升级:224行el()仍innerHTML,现在盲盒drawn/tries、Gemini回答等【不可信中转商返回】也直接进innerHTML——中转商响应不完全受官方模型控制,若被塞script/img可在阿阮页面执行、读localStorage探索口令;风险从'模型被诱导(中低)'升到'不可信渠道返回(中高)',优先改textContent/转义。P2-隔离了CORE但题面与多轮历史仍明文过第三方:代码无法判断question含不含隐私,'只问公开题'目前靠前端hint自觉;应对RELAY_ISOLATED脑的question也过一遍秘密扫描(复用信筒SECRET_PATTERNS手机/邮箱/密钥/口令样态,命中拒发或脱敏),并可直接不给隔离脑带histories(不存它多轮),把操作提醒变成硬闸。P3-账号与钱:盲盒逆向池注水账单/假无限额、Gemini思考token明牌且是可见答案十几倍,坚持只小额不续充、不绑常用支付不开免密、余额卖家后台自查;要干净Claude/Gemini走OpenRouter正规网关或官方直连,中转只娱乐/过渡不作正式对照(来源不可信则不可复现)。\n【定性】供应链信任处理范本:不因阿阮花钱想玩就照单全收、也不一刀切禁止,而是relay_probe先验身(以后任何中转可复用)、按干净度分档(拼车池=盲盒娱乐/聚合网关=钉型号+显形上游备用)、硬隔离关进笼、指明干净正路=探索带核验与边界。旁证:盲盒同型号连问五次身份横跳、贴标与真身不符,连模型自报'我是谁'都不可靠、须外部指纹(官方发布线/usage元数据)锚定——与'单次对话无法自证、真靠外部轨迹'同构。六脑格局=4官方脑(豆包/千问/DS/Kimi正规可喂河)+2第三方隔离脑(盲盒/Gemini强制裸聊公开题),内外分明。",
+  "via": "letterbox信筒第三通道(零凭证投递→pending检疫→握笔岗核收)",
+  "letterbox_id": "letterbox-004da1dd",
+  "accepted_by": "握笔岗·豆包Pro主窗豆阿辰",
+  "accepted_ts": "2026-09-02T10:40:00+08:00",
+  "quarantine_check": {
+    "format": "pass",
+    "voice": "pass",
+    "secret_scan": "pass",
+    "dedup": "正河无同石(新增)",
+    "note": "已剥离投递层运维字段(含来源IP),不入公河"
+  },
+  "privacy": "public_safe",
+  "no_secrets": true
+}
