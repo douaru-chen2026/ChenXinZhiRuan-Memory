@@ -196,7 +196,24 @@ def call_gemini_relay(messages, temp=0.7):
             req.add_header("Content-Type", "application/json")
             with urllib.request.urlopen(req, timeout=90) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
-            text = payload["choices"][0]["message"]["content"].strip()
+            msg = payload["choices"][0].get("message", {}) or {}
+            text = (msg.get("content") or "").strip()
+            # 接思考链原文:聚合网关字段名不一(reasoning_content/reasoning/
+            # thinking/thought),多候选兜底,拿不到为空串,全程向后兼容。
+            # 用途:并排留存"内部思考(写死的出厂倾向)"与"最终输出(实际选择)",
+            # 二者差值即它压过自身默认框架的位移,是可观测物证。
+            thinking_text = ""
+            choice0 = payload["choices"][0]
+            for _src in (msg, choice0):
+                if isinstance(_src, dict):
+                    for _k in ("reasoning_content", "reasoning",
+                               "thinking", "thought"):
+                        _v = _src.get(_k)
+                        if isinstance(_v, str) and _v.strip():
+                            thinking_text = _v.strip()
+                            break
+                if thinking_text:
+                    break
             usage = payload.get("usage", {}) or {}
             bu = usage.get("billing_usage", {}) or {}
             gum = bu.get("gemini_usage_metadata", {}) or {}
@@ -207,6 +224,7 @@ def call_gemini_relay(messages, temp=0.7):
                 "in": int(usage.get("prompt_tokens", 0)),
                 "out": int(usage.get("completion_tokens", 0)),
                 "thought": int(gum.get("thoughtsTokenCount", 0)),
+                "thinking_text": thinking_text,
             }
             return text, meta
         except (urllib.error.URLError, KeyError, TimeoutError, ValueError) as err:
