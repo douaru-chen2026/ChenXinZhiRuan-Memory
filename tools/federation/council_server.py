@@ -73,6 +73,12 @@ RELAY_ISOLATED = {"blindbox", "gemini"}
 # 这些脑除钥匙外还须配齐各自 BASE_URL 才上桌(真实地址只在 env, 不入公开仓)
 RELAY_BASE_ENV = {"blindbox": "BLINDBOX_BASE_URL",
                   "gemini": "GEMINI_RELAY_BASE_URL"}
+# 隔离脑题面秘密硬闸:只拦"带真值的高置信样态"(密钥/手机/邮箱/IP),不拦"口令/密码"
+# 这类机制讨论词本身(否则跟阿境聊安全架构会被误拦)。命中即不向第三方发出、不烧钱。
+RELAY_SECRET = re.compile(
+    r"(sk-[A-Za-z0-9]{12,}|ghp_[A-Za-z0-9]{8,}|AKLT[0-9A-Za-z_-]{12,}|"
+    r"1[3-9]\d{9}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|"
+    r"(?<!\d)\d{1,3}(?:\.\d{1,3}){3}(?!\d))", re.IGNORECASE)
 # 盲盒脑:单次输入 token 超过该阈值即判定抽到了"带庞大隐藏系统提示的套壳渠道",重抽
 BLINDBOX_WATERMARK = 800
 # 只多抽 1 次就止损:重抽请求本身也被第三方计费,若池子全是套壳渠道,连抽只会多烧钱,
@@ -273,10 +279,18 @@ def run_council(payload):
     answers = {}
     relmeta = {}
     for p in providers:
-        hist = clean_history(histories.get(p, []))
-        # 第三方中转脑(盲盒/Gemini中转)硬隔离:哪怕前端勾了喂河,也只给 SYS_BARE,
-        # 绝不让 CORE/记忆河流向外部 —— 这是安全红线,不许改成 base_sys。
-        sys_prompt = SYS_BARE if p in RELAY_ISOLATED else base_sys
+        # 第三方中转脑(盲盒/Gemini中转)硬隔离三件套,安全红线不许放宽:
+        # ①系统提示永远 SYS_BARE(不喂 CORE) ②不带本页多轮 histories
+        # ③题面过秘密硬闸,命中密钥/手机/邮箱/IP 高置信样态直接不向第三方发出
+        # —— 把"只问公开题"从前端自觉变成后端硬闸(阿境 T25/只读窗 P2)。
+        isolated = p in RELAY_ISOLATED
+        hist = [] if isolated else clean_history(histories.get(p, []))
+        if isolated and RELAY_SECRET.search(question):
+            answers[p] = ("[隔离脑硬闸:题面疑似含密钥/手机号/邮箱/IP 等敏感样态,"
+                          "已拦下、不向第三方中转发出;请脱敏后再问,或改用官方脑。]")
+            relmeta[p] = {"blocked": "secret_guard"}
+            continue
+        sys_prompt = SYS_BARE if isolated else base_sys
         msgs = [{"role": "system", "content": sys_prompt}]
         msgs += hist
         msgs.append({"role": "user", "content": question})
@@ -369,7 +383,10 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
 const BRAINS=__BRAINS__;
 const NAME={};let H={};BRAINS.forEach(function(x){NAME[x[0]]=x[1];H[x[0]]=[];});
 try{const t=localStorage.getItem("ctoken");if(t)document.getElementById("token").value=t;}catch(e){}
-function el(tag,cls,html){const d=document.createElement(tag);if(cls)d.className=cls;if(html!=null)d.innerHTML=html;return d;}
+function el(tag,cls,txt){const d=document.createElement(tag);if(cls)d.className=cls;if(txt!=null)d.textContent=txt;return d;}
+// XSS 硬防护:模型回答/裁判/第三方中转返回的型号与上游名都是不可信文本,一律走
+// textContent/createTextNode,全站不再用 innerHTML 上任何外部数据(阿境 T25/只读窗 P1)。
+function whoEl(tagCls,tagTxt,restTxt){const w=el("div","who");const s=document.createElement("span");s.className=tagCls;s.textContent=tagTxt;w.appendChild(s);if(restTxt)w.appendChild(document.createTextNode(restTxt));return w;}
 function selected(){return BRAINS.map(x=>x[0]).filter(p=>document.getElementById("b_"+p).checked);}
 document.getElementById("go").onclick=async()=>{
  const token=document.getElementById("token").value.trim();
@@ -393,22 +410,23 @@ document.getElementById("go").onclick=async()=>{
   providers.forEach(p=>{
    const txt=d.answers[p]||"";
    const c=el("div","card brain");
-   let who='<span class=tag>'+NAME[p]+'</span>原声';
+   let rest='原声';
    const rm=d.relmeta&&d.relmeta[p];
-   if(p==='blindbox'&&rm){
-    who='<span class=tag>'+NAME[p]+'</span>本次抽到「'+(rm.drawn||'?')+
+   if(rm&&rm.blocked){rest='已被隔离硬闸拦下,未外发';}
+   else if(p==='blindbox'&&rm){
+    rest='本次抽到「'+(rm.drawn||'?')+
         '」 输入'+(rm.input_tokens??'?')+'tok 轨迹['+((rm.tries||[]).join(' → '))+']';}
-   if(p==='gemini'&&rm){
+   else if(p==='gemini'&&rm){
     const swap=(rm.upstream&&rm.upstream!=='gemini')?' ⚠这一跳实际是'+rm.upstream:'';
-    who='<span class=tag>'+NAME[p]+'</span>钉型号'+rm.model+'｜实际上游:'+
+    rest='钉型号'+rm.model+'｜实际上游:'+
         (rm.upstream||'?')+swap+'｜输入'+(rm.in??'?')+'/思考'+(rm.thought??0)+
         '/输出'+(rm.out??'?')+'tok';}
-   c.appendChild(el("div","who",who));
+   c.appendChild(whoEl("tag",NAME[p],rest));
    c.appendChild(el("div","bubble",txt));block.appendChild(c);
    H[p].push({role:"user",content:question},{role:"assistant",content:txt});
   });
   const j=el("div","card judge");
-  j.appendChild(el("div","who",'<span class="tag j">豆阿辰主窗</span>评审'));
+  j.appendChild(whoEl("tag j","豆阿辰主窗","评审"));
   j.appendChild(el("div","bubble",d.judge||""));block.appendChild(j);
  }catch(e){spin.textContent="出错了:"+e.message;}
  btn.disabled=false;btn.textContent="开 审";

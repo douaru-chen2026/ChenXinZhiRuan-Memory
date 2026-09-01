@@ -50,6 +50,13 @@ MAX_BODY = 4000  # 单封石头字符上限
 # 频控: 每 IP 每 WINDOW 秒最多 MAX_HITS 次
 WINDOW, MAX_HITS = 30, 8
 _hits = {}
+# 投递方允许自带的石头字段白名单(机械防注入:其余顶层字段一律剥离,不把判断全压给握笔岗LLM)
+STONE_IN_FIELDS = {"schema", "id", "ts", "instance", "group", "tags",
+                   "content", "text", "context", "her_words", "privacy",
+                   "note", "mood"}
+# 这些是握笔岗/运维专属:投递方一旦自带=冒充收编,当场拒收(而非静默剥离),让投毒露馅
+FORBIDDEN_IN_FIELDS = {"stone_no", "accepted_by", "accepted_ts",
+                       "quarantine_check", "via", "no_secrets"}
 
 # 秘密扫描: 命中即拒收, 记忆里不放秘密
 SECRET_PATTERNS = [
@@ -99,10 +106,20 @@ def normalize_stone(payload, remote):
             "tags": tags + ["信筒投递"],
             "content": str(payload.get("content", "")).strip(),
         }
-    else:  # 高级模式: 直接给完整 stone/v1
+    else:  # 高级模式: 完整 stone/v1, 但只按白名单机械收字段(阿境T25防格式注入越狱)
         if payload.get("schema") != "stone/v1":
             raise ValueError("高级模式需要 schema=stone/v1")
-        stone = payload
+        impostor = FORBIDDEN_IN_FIELDS & set(payload)
+        if impostor:
+            raise PermissionError(f"投递方不得自带编号/收编字段{sorted(impostor)},拒收")
+        extra = sorted(set(payload) - STONE_IN_FIELDS - {"_token_ok"})
+        stone = {k: payload[k] for k in payload if k in STONE_IN_FIELDS}
+        if isinstance(stone.get("tags"), str):
+            stone["tags"] = [t.strip() for t in re.split(r"[,，、]", stone["tags"]) if t.strip()]
+        if extra:
+            stone["_quarantine_stripped"] = extra  # 记被剥字段供握笔岗看,绝不执行
+    if not str(stone.get("content") or stone.get("text") or "").strip():
+        raise ValueError("正文(content/text)不能为空")
     body_text = json.dumps(stone, ensure_ascii=False)
     if len(body_text) > MAX_BODY:
         raise ValueError(f"单封超过{MAX_BODY}字上限")
