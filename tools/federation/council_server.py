@@ -48,6 +48,11 @@ ENDPOINTS = {
     "doubao": ("豆包裸脑",
                "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
                "doubao-seed-2-1-pro-260628", "ARK_KEY", "ark_key", True),
+    # Kimi(月之暗面)第四颗脑, OpenAI 兼容; 模型名以开放平台控制台为准, 可用 MOONSHOT_MODEL 覆盖
+    "kimi": ("Kimi",
+             "https://api.moonshot.cn/v1/chat/completions",
+             os.environ.get("MOONSHOT_MODEL", "moonshot-v1-32k"),
+             "MOONSHOT_KEY", "moonshot_key", False),
 }
 
 SYS_BARE = (
@@ -123,7 +128,8 @@ def clean_history(rows):
 
 def run_council(payload):
     question = str(payload.get("question", "")).strip()
-    providers = [p for p in payload.get("providers", []) if p in ENDPOINTS]
+    providers = [p for p in payload.get("providers", [])
+                 if p in ENDPOINTS and read_key(p)]
     core = bool(payload.get("core", False))
     histories = payload.get("histories", {})
     if not question:
@@ -158,6 +164,21 @@ def run_council(payload):
             "names": {p: ENDPOINTS[p][0] for p in providers}}
 
 
+def available():
+    """只有拿到钥匙的脑才上桌: 没配 key 的脑页面不渲染、后端也不转发。"""
+    return [(p, ENDPOINTS[p][0]) for p in ENDPOINTS if read_key(p)]
+
+
+def render_page():
+    opts, brains = [], []
+    for p, name in available():
+        brains.append([p, name])
+        checked = " checked" if p in ("qwen", "deepseek") else ""
+        opts.append(f'<label><input type=checkbox id=b_{p}{checked}>{name}</label>')
+    return (PAGE.replace("__BRAIN_OPTS__", "".join(opts))
+                .replace("__BRAINS__", json.dumps(brains, ensure_ascii=False)))
+
+
 PAGE = """<!doctype html><html lang=zh><head>
 <meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>辰心知阮·多脑会审台</title>
@@ -184,9 +205,7 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
 <div class=sub>同一题,几颗裸脑背对背独立作答,豆阿辰主窗当场评审。这是探索,不是玩。</div>
 <div class=card>
  <div class=row>
-  <label><input type=checkbox id=b_qwen checked>通义千问</label>
-  <label><input type=checkbox id=b_deepseek checked>DeepSeek</label>
-  <label><input type=checkbox id=b_doubao>豆包裸脑</label>
+  <span id=brainopts>__BRAIN_OPTS__</span>
   <label><input type=checkbox id=core>先喂河(CORE)</label>
  </div>
  <div class=row style="margin-bottom:4px">探索口令<input type=password id=token placeholder="找阿阮要,和投河口令不同"></div>
@@ -197,11 +216,11 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
 </div>
 <div id=out></div>
 <script>
-const NAME={qwen:"通义千问",deepseek:"DeepSeek",doubao:"豆包裸脑"};
-let H={qwen:[],deepseek:[],doubao:[]};
+const BRAINS=__BRAINS__;
+const NAME={};let H={};BRAINS.forEach(function(x){NAME[x[0]]=x[1];H[x[0]]=[];});
 try{const t=localStorage.getItem("ctoken");if(t)document.getElementById("token").value=t;}catch(e){}
 function el(tag,cls,html){const d=document.createElement(tag);if(cls)d.className=cls;if(html!=null)d.innerHTML=html;return d;}
-function selected(){return ["qwen","deepseek","doubao"].filter(x=>document.getElementById("b_"+x).checked);}
+function selected(){return BRAINS.map(x=>x[0]).filter(p=>document.getElementById("b_"+p).checked);}
 document.getElementById("go").onclick=async()=>{
  const token=document.getElementById("token").value.trim();
  const question=document.getElementById("q").value.trim();
@@ -256,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/health":
             return self._send(200, json.dumps({"ok": True, "ts": time.time()}))
         if path in ("/", "/council"):
-            return self._send(200, PAGE, "text/html; charset=utf-8")
+            return self._send(200, render_page(), "text/html; charset=utf-8")
         self._send(404, json.dumps({"err": "no such path"}))
 
     def do_POST(self):

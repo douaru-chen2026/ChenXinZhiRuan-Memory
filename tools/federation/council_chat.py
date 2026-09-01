@@ -34,6 +34,11 @@ ENDPOINTS = {
     "doubao": ("豆包方舟裸脑",
                "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
                "doubao-seed-2-1-pro-260628", "ark_key", True),
+    # Kimi(月之暗面), OpenAI 兼容; 需要 .secrets/moonshot_key 或环境变量, 缺了自动跳过
+    "kimi": ("Kimi",
+             "https://api.moonshot.cn/v1/chat/completions",
+             os.environ.get("MOONSHOT_MODEL", "moonshot-v1-32k"),
+             "moonshot_key", False),
 }
 
 SYS_BARE = (
@@ -97,8 +102,11 @@ def main():
         print("请用 --q 或 --q-file 给出问题"); sys.exit(1)
 
     providers = [p.strip() for p in args.providers.split(",") if p.strip()]
-    if args.all and "doubao" not in providers:
-        providers.append("doubao")
+    if args.all:
+        for extra in ("doubao", "kimi"):
+            if extra not in providers:
+                providers.append(extra)
+    providers = [p for p in providers if p in ENDPOINTS]
 
     system = SYS_BARE
     if args.core:
