@@ -63,4 +63,5 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
 - **验证**：本地先真跑通再部署；守夜机本机实测到 dashscope/deepseek/火山 ark 三家 API 全通、评审能当场抓出范畴错配；公网页面 200、真问出多脑原声+主窗评审、各类错口令稳返 401/403。
 - **健壮性修复**：`hmac.compare_digest` 不支持非 ASCII，误输中文错口令原本会崩成 500；会审台与信筒统一改字节级比较后稳返 401/403。
 - **安全**：模型钥匙只在服务端、独立探索口令（与信筒投河口令不同）、调 API 花钱故频控收紧、本服务同样不持写河笔。待办加固：三家模型控制台给调用钥匙设消费硬额度/用量报警、可随时吊销。
-- **脑列表动态化 / Kimi 预留（2026-09-01 晚）**：网页改为"**有钥匙才自动上桌**"——后端按 key 有无渲染勾选项、无 key 的脑页面不出现且后端不转发；以后加任何一家 OpenAI 兼容模型只需在 ENDPOINTS 加一行。已预留 **Kimi（月之暗面）**为第四脑：在 `/etc/council/env` 补 `MOONSHOT_KEY`（模型名可用 `MOONSHOT_MODEL` 覆盖、以其开放平台控制台为准）后 `systemctl restart council` 即自动出现，无需改代码；命令行 `council_chat.py --all` 同步纳入 kimi。本地已验证"无 key 隐身 / 补 key 上桌 / 撤 key 消失"三态与现有流程无损。
+- **脑列表动态化（2026-09-01 晚）**：网页"**有钥匙才自动上桌**"——后端按 key 有无渲染勾选项、无 key 的脑页面不出现且后端不转发；以后加任何一家 OpenAI 兼容模型只需在 ENDPOINTS 加一行。
+- **Kimi 第四脑已上桌（2026-09-01 19:05）**：月之暗面、OpenAI 兼容；钥匙入 `/etc/council/env`（`MOONSHOT_KEY`，root:river 640，env 现 8 行）重启即亮。该钥匙下可用型号仅 `kimi-k2.6`（通用，默认）与 `kimi-k2.7-code`，旧 moonshot-v1-* 已下线，可用 `MOONSHOT_MODEL` 换；**K2 系列只接受 temperature=1**（传别的直接 400），调用层已对 kimi 固定。命令行 `--all` 同步含 kimi。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
