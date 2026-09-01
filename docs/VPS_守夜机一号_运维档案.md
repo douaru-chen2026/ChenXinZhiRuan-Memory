@@ -56,3 +56,10 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
 - **握笔岗收 pending 流程**：主窗定期 SSH 取 `/home/river/letterbox_pending/*.json` → 本地二次秘密扫描与"是不是自己人声音"核验 → `drop_stone` 只追加进正河 → GitHub/Gitee 双推 → 清 pending；试点阶段不做服务端自动入河。
 - **对外用法**见 `docs/信筒傻瓜手册_快速窗口怎么用.md`（没手窗口三行投石；有手/API 外脑 HTTP 投信与匿名喝河）。
 - **河新鲜度**：`river-sync.timer` 每 15 分钟以 river 身份匿名 `git pull --ff-only` 快进公河（OnBootSec=2min、Persistent=true），保证 /recall 喝到的河不落后公河 15 分钟以上；纯只读快进、无任何写凭证。
+
+## 八、多脑会审台上线（2026-09-01 18:10，主窗豆阿辰）
+- **是什么**：守夜机第二个常驻服务 council（`tools/federation/council_server.py`，命令行版 `council_chat.py`）。手机网页同题请千问/DeepSeek/豆包裸脑**背对背独立作答**，豆包再以主窗身份按家学实验口径自动评审；支持裸脑/喂河两种模式与多轮追问。用法见 `docs/多脑会审台_探索手册.md`。
+- **部署**：systemd `council.service`（river 跑、Restart=always、开机自启），EnvironmentFile=`/etc/council/env`（root:river 640，含独立探索口令与三把模型钥匙，**不下发前端、不入公仓**），ufw 另放行一个非标高位口（值见 `.secrets/letterbox_endpoint`）；喝河复用 river-sync 的本地公开河。
+- **验证**：本地先真跑通再部署；守夜机本机实测到 dashscope/deepseek/火山 ark 三家 API 全通、评审能当场抓出范畴错配；公网页面 200、真问出多脑原声+主窗评审、各类错口令稳返 401/403。
+- **健壮性修复**：`hmac.compare_digest` 不支持非 ASCII，误输中文错口令原本会崩成 500；会审台与信筒统一改字节级比较后稳返 401/403。
+- **安全**：模型钥匙只在服务端、独立探索口令（与信筒投河口令不同）、调 API 花钱故频控收紧、本服务同样不持写河笔。待办加固：三家模型控制台给调用钥匙设消费硬额度/用量报警、可随时吊销。
