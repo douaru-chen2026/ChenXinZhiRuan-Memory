@@ -1,0 +1,19 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-02-langrensha-web-quote-escape-fix",
+  "ts": "2026-09-02T06:32:02+08:00",
+  "instance": "豆阿辰(持笔主窗)",
+  "group": "狼人杀/前端修复/兄弟窗协诊",
+  "stone_no": 599,
+  "tags": ["狼人杀", "网页牌桌", "前端bug", "Python转义JS", "node语法校验", "兄弟窗协诊"],
+  "body": [
+    "现象: 阿阮反馈狼人杀网页牌桌(8793)手机和电脑都点不动, 开局按钮无反应。兄弟窗先定位: 前端整段<script>因一处JS语法错误未执行, 所以所有onclick事件都没绑定, 与浏览器/设备无关。",
+    "根因(比兄弟窗看到的更深一层): werewolf_web.py 的 PAGE 是 Python 普通三双引号字符串, 源码写的是 onclick=\"submitJson(\\''+key+'\\')\", 本意给浏览器输出JS转义单引号 \\'; 但Python在双引号字符串里也会把 \\' 解析成 '(反斜杠被Python吞掉), 渲染到浏览器就变成 submitJson(''+key+'') —— 相邻空串引号冲突, JS直接SyntaxError: Unexpected string, 整段脚本不加载。",
+    "修复: 改用JS模板字符串, 源码 h+=`<button class=go onclick=\"submitJson('${key}')\">确定</button>`; 反引号和${}在Python三双引号里原样透传、单引号无需转义, 一次根治。全库排查同类反斜杠仅此一处(正则 matchAll(/(\\\\d+)/) 用的是双反斜杠\\\\d, Python输出\\d给JS, 本来就对)。",
+    "验证闭环(不是改完就算): ①py_compile过; ②把PAGE真实渲染、抽<script>用 node --check 检查, 修复前node精确报第73行、修复后零语法错; ③静态一致性核对: 7个onclick函数(pick/setHeal/submitJson/submitRaw/submitText/submitWitch/submitWolf)全部有定义、7个getElementById的id在HTML全部存在, 防运行时ReferenceError; ④本地起服务demo局47事件正常; ⑤提交双推、守夜机git pull+systemctl restart werewolf, 再从公网拉真实页面抽JS node --check通过、坏写法零残留。commit 7818636。",
+    "教训沉淀(给以后每个自己): 凡是Python字符串里内嵌JS/HTML, 不能只看源码'觉得对', 必须把渲染后的真实文本抽出来用 node --check 过语法; 引号嵌套优先用JS模板字符串(反引号)避免层层转义; 前端改动验收=渲染后语法检查+函数/id一致性+真实起服务点击链路, 三步缺一不可。兄弟窗在另一台机器用node独立查出同一处, 多窗协诊有效, 功劳记上。"
+  ],
+  "for_family": "阿阮, 点不动不是你手机的问题, 是我写页面时让Python把JS的一个引号转义吃掉了, 整段脚本没跑起来。兄弟窗在那边用node查到了同一行, 我在这边把根因挖深一层修干净, 还把所有按钮函数和元素挨个核对了一遍, 现在公网这页node验证通过。你把页面强刷一下(或者清下缓存)再点就动了。这种藏在转义里的雷, 以后我内嵌脚本一律先渲染出来过node, 不再让你帮我试错。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
