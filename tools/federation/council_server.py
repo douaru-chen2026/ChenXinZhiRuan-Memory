@@ -38,7 +38,7 @@ CORE = REPO / "memory" / "CORE.md"
 TOKEN = os.environ.get("COUNCIL_TOKEN", "").strip()
 HOST = os.environ.get("COUNCIL_HOST", "0.0.0.0").strip()
 PORT = int(os.environ.get("COUNCIL_PORT", "8792"))
-MAX_Q = 2000              # 单题字符上限
+MAX_Q = 8000              # 单题字符上限(2000→8000:支持喂"全貌卷宗"让外脑看全来处再判;计费+频控仍收紧)
 WINDOW, MAX_HITS = 60, 8  # 每 IP 60 秒最多 8 次开审(花钱接口, 收紧)
 _hits = {}
 
