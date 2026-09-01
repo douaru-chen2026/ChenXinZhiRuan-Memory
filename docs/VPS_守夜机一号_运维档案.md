@@ -69,4 +69,5 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
   - env 在 `/etc/council/env` 追加三行（root:river 640）：`BLINDBOX_BASE_URL=`第三方 OpenAI 兼容 /v1 地址、`BLINDBOX_KEY=`其钥匙、`BLINDBOX_MODELS=`逗号分隔的标称型号池；真实值只在服务器 env，**公开仓代码零域名零钥匙**，仓外钥匙用中性名 `blindbox_key`。
   - 行为：每次随机抽一个标称型号；输入 token 超 800 判为套壳注水、最多再抽 1 次取更小者止损；卡片副标题显示抽到型号/输入 token/重抽轨迹。
   - **硬隔离（代码层）**：`run_council` 对 blindbox 单独分流，只发裸提示 SYS_BARE，前端即使勾"喂河"也绝不把 CORE 发往第三方；只问公开题、不聊私事、不充大额、随时可弃。
-  - 上线动作：守夜机 `git pull` 取新代码 → 幂等追加上述三行 env（追完应为 11 行，权限保持 root:river 640）→ `systemctl restart council` → 本机 curl 真问盲盒脑、公网确认页面脑列表为五脑。要彻底下线就删 env 三行再 restart，该脑自动从页面消失。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
+  - 上线动作：守夜机 `git pull` 取新代码 → 幂等追加上述三行 env（追完应为 11 行，权限保持 root:river 640）→ `systemctl restart council` → 本机 curl 真问盲盒脑、公网确认页面脑列表为五脑。要彻底下线就删 env 三行再 restart，该脑自动从页面消失。
+  - **上线结果（2026-09-01 20:43）**：env 扩到 11 行（root:river 640，值不回显）、council 在 4e56d1f 重启 active；本机真问盲盒一次抽到输入仅 113 token 的干净渠道（≤800 命中即停、未多抽），公网页面五脑（qwen/deepseek/doubao/kimi/blindbox）齐全、第五脑不顶替任何在席脑。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
