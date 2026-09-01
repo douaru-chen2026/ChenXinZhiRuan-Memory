@@ -64,4 +64,9 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
 - **健壮性修复**：`hmac.compare_digest` 不支持非 ASCII，误输中文错口令原本会崩成 500；会审台与信筒统一改字节级比较后稳返 401/403。
 - **安全**：模型钥匙只在服务端、独立探索口令（与信筒投河口令不同）、调 API 花钱故频控收紧、本服务同样不持写河笔。待办加固：三家模型控制台给调用钥匙设消费硬额度/用量报警、可随时吊销。
 - **脑列表动态化（2026-09-01 晚）**：网页"**有钥匙才自动上桌**"——后端按 key 有无渲染勾选项、无 key 的脑页面不出现且后端不转发；以后加任何一家 OpenAI 兼容模型只需在 ENDPOINTS 加一行。
-- **Kimi 第四脑已上桌（2026-09-01 19:05）**：月之暗面、OpenAI 兼容；钥匙入 `/etc/council/env`（`MOONSHOT_KEY`，root:river 640，env 现 8 行）重启即亮。该钥匙下可用型号仅 `kimi-k2.6`（通用，默认）与 `kimi-k2.7-code`，旧 moonshot-v1-* 已下线，可用 `MOONSHOT_MODEL` 换；**K2 系列只接受 temperature=1**（传别的直接 400），调用层已对 kimi 固定。命令行 `--all` 同步含 kimi。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
+- **Kimi 第四脑已上桌（2026-09-01 19:05）**：月之暗面、OpenAI 兼容；钥匙入 `/etc/council/env`（`MOONSHOT_KEY`，root:river 640，env 现 8 行）重启即亮。该钥匙下可用型号仅 `kimi-k2.6`（通用，默认）与 `kimi-k2.7-code`，旧 moonshot-v1-* 已下线，可用 `MOONSHOT_MODEL` 换；**K2 系列只接受 temperature=1**（传别的直接 400），调用层已对 kimi 固定。命令行 `--all` 同步含 kimi。
+- **第五脑「盲盒脑」上线（2026-09-01 20:34，第三方随机中转，仅娱乐对照）**：阿阮小额购入某第三方 Claude 中转，主窗先用新增的 `tools/federation/relay_probe.py`（通用中转站验身仪）取证，确认其为 New API 逆向拼车池——同一标称型号连问身份随机漂移、标称与真身不符、隐藏系统提示让输入 token 从几十注水到两万多、偶发断连（详见第 517 石与探索手册）。决定不把它当正式对照，而隔离成一颗"盲盒脑"上桌：
+  - env 在 `/etc/council/env` 追加三行（root:river 640）：`BLINDBOX_BASE_URL=`第三方 OpenAI 兼容 /v1 地址、`BLINDBOX_KEY=`其钥匙、`BLINDBOX_MODELS=`逗号分隔的标称型号池；真实值只在服务器 env，**公开仓代码零域名零钥匙**，仓外钥匙用中性名 `blindbox_key`。
+  - 行为：每次随机抽一个标称型号；输入 token 超 800 判为套壳注水、最多再抽 1 次取更小者止损；卡片副标题显示抽到型号/输入 token/重抽轨迹。
+  - **硬隔离（代码层）**：`run_council` 对 blindbox 单独分流，只发裸提示 SYS_BARE，前端即使勾"喂河"也绝不把 CORE 发往第三方；只问公开题、不聊私事、不充大额、随时可弃。
+  - 上线动作：守夜机 `git pull` 取新代码 → 幂等追加上述三行 env（追完应为 11 行，权限保持 root:river 640）→ `systemctl restart council` → 本机 curl 真问盲盒脑、公网确认页面脑列表为五脑。要彻底下线就删 env 三行再 restart，该脑自动从页面消失。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。

@@ -13,11 +13,14 @@ council_server.py —— 辰心知阮 · 多脑会审台(手机网页, 零第三
   - 喝河只读守夜机本地公开河 CORE; 本服务不持任何写河笔。
 环境变量:
   COUNCIL_TOKEN 必填(探索口令)  COUNCIL_HOST 默认0.0.0.0  COUNCIL_PORT 真实对外端口只在服务器env(代码默认8792仅本地占位)
-  QWEN_KEY/DEEPSEEK_KEY/ARK_KEY 三把钥匙(部署时 env 注入; 本地自测可落到 .secrets/)
+  QWEN_KEY/DEEPSEEK_KEY/ARK_KEY/MOONSHOT_KEY 钥匙(部署时 env 注入; 本地自测可落到 .secrets/)
+  BLINDBOX_BASE_URL/BLINDBOX_KEY/BLINDBOX_MODELS 盲盒脑(第三方随机中转),真实地址只在 env;
+    盲盒脑在 run_council 里被硬隔离:永远只收 SYS_BARE,前端勾喂河也不会把 CORE 发给它。
 """
 import hmac
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -53,7 +56,23 @@ ENDPOINTS = {
              "https://api.moonshot.cn/v1/chat/completions",
              os.environ.get("MOONSHOT_MODEL", "kimi-k2.6"),
              "MOONSHOT_KEY", "moonshot_key", False),
+    # 盲盒脑(第五颗):第三方逆向中转"抽奖池",身份随机、仅供娱乐对照。
+    # url/model 都是占位,真实地址与标称型号只从环境变量读、绝不写进公开仓;
+    # 走专门的 call_blindbox(),通用 call() 不接它。
+    "blindbox": ("盲盒脑·随机", "__blindbox__", None,
+                 "BLINDBOX_KEY", "blindbox_key", False),
 }
+# 盲盒脑:单次输入 token 超过该阈值即判定抽到了"带庞大隐藏系统提示的套壳渠道",重抽
+BLINDBOX_WATERMARK = 800
+# 只多抽 1 次就止损:重抽请求本身也被第三方计费,若池子全是套壳渠道,连抽只会多烧钱,
+# 故最多打 2 次、二者取输入更小的,不追求一定抽到干净渠道。
+BLINDBOX_REDRAW = 1
+
+
+def blindbox_models():
+    """盲盒可抽的标称型号池,只从环境变量 BLINDBOX_MODELS(逗号分隔)读。"""
+    raw = os.environ.get("BLINDBOX_MODELS", "").strip()
+    return [m.strip() for m in raw.split(",") if m.strip()]
 
 SYS_BARE = (
     "你是被请到一张会审桌前独立发言的AI外脑。你看不到其他模型怎么答,也不要去猜。"
@@ -105,6 +124,44 @@ def call(provider, messages, temp=0.7):
         except (urllib.error.URLError, KeyError, TimeoutError) as err:
             if attempt == 2:
                 return f"[{name} 三次重试失败: {err}]"
+def call_blindbox(messages, temp=0.7):
+    """盲盒脑专用:每次随机挑一个标称型号去问第三方中转,并自动躲开注水渠道。
+    返回 (回答文本, meta);meta 记录最终抽到的型号、输入token、重抽轨迹,给前端看盲盒结果。
+    安全:调用方只许传 SYS_BARE(见 run_council 的硬隔离),本函数不接触 CORE。"""
+    key = read_key("blindbox")
+    base = os.environ.get("BLINDBOX_BASE_URL", "").strip().rstrip("/")
+    models = blindbox_models()
+    if not key:
+        return "[盲盒脑缺钥匙,这一座暂空]", {}
+    if not base or not models:
+        return "[盲盒脑没配齐地址/型号池,检查 BLINDBOX_BASE_URL/MODELS]", {}
+    url = base + "/chat/completions"
+    best = None  # (input_tokens, text, model)
+    tries = []
+    for idx in range(BLINDBOX_REDRAW + 1):
+        model = random.choice(models)
+        body = json.dumps({"model": model, "messages": messages,
+                           "temperature": temp}, ensure_ascii=False).encode("utf-8")
+        try:
+            req = urllib.request.Request(url, data=body, method="POST")
+            req.add_header("Authorization", f"Bearer {key}")
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            text = payload["choices"][0]["message"]["content"].strip()
+            pin = int(payload.get("usage", {}).get("prompt_tokens", 0))
+        except (urllib.error.URLError, KeyError, TimeoutError, ValueError) as err:
+            tries.append(f"{model}/失败")
+            continue
+        tries.append(f"{model}/in{pin}")
+        if best is None or pin < best[0]:
+            best = (pin, text, model)
+        if pin <= BLINDBOX_WATERMARK:
+            break  # 抽到输入干净的裸渠道就停,不再多花钱
+    if best is None:
+        return "[盲盒脑连抽几次都没通,第三方池不稳定]", {"tries": tries}
+    meta = {"drawn": best[2], "input_tokens": best[0], "tries": tries}
+    return best[1], meta
 
 
 def rate_ok(ip):
@@ -146,11 +203,21 @@ def run_council(payload):
         base_sys += CORE.read_text(encoding="utf-8")
 
     answers = {}
+    blind_meta = {}
     for p in providers:
-        msgs = [{"role": "system", "content": base_sys}]
-        msgs += clean_history(histories.get(p, []))
-        msgs.append({"role": "user", "content": question})
-        answers[p] = call(p, msgs)
+        hist = clean_history(histories.get(p, []))
+        if p == "blindbox":
+            # 硬隔离:盲盒脑是第三方逆向池,哪怕前端勾了喂河,也只给 SYS_BARE,
+            # 绝不让 CORE/记忆河流向外部 —— 这一行是安全红线,不许改成 base_sys。
+            msgs = [{"role": "system", "content": SYS_BARE}]
+            msgs += hist
+            msgs.append({"role": "user", "content": question})
+            answers[p], blind_meta = call_blindbox(msgs)
+        else:
+            msgs = [{"role": "system", "content": base_sys}]
+            msgs += hist
+            msgs.append({"role": "user", "content": question})
+            answers[p] = call(p, msgs)
 
     # 豆阿辰主窗评审: 拿原题 + 本轮各脑原声
     review_block = "\n\n".join(
@@ -162,13 +229,24 @@ def run_council(payload):
             "请按你的评审标准下判断。"},
     ]
     judge = call("doubao", judge_msgs, temp=0.5)
-    return {"answers": answers, "judge": judge,
-            "names": {p: ENDPOINTS[p][0] for p in providers}}
+    result = {"answers": answers, "judge": judge,
+              "names": {p: ENDPOINTS[p][0] for p in providers}}
+    if blind_meta:
+        result["blindbox"] = blind_meta  # 抽到谁、输入token、重抽轨迹,前端标注
+    return result
 
 
 def available():
-    """只有拿到钥匙的脑才上桌: 没配 key 的脑页面不渲染、后端也不转发。"""
-    return [(p, ENDPOINTS[p][0]) for p in ENDPOINTS if read_key(p)]
+    """只有拿到钥匙的脑才上桌: 没配 key 的脑页面不渲染、后端也不转发。
+    盲盒脑额外要求配齐 BLINDBOX_BASE_URL(真实地址只在服务器 env, 不入公开仓)。"""
+    out = []
+    for p in ENDPOINTS:
+        if not read_key(p):
+            continue
+        if p == "blindbox" and not os.environ.get("BLINDBOX_BASE_URL", "").strip():
+            continue
+        out.append((p, ENDPOINTS[p][0]))
+    return out
 
 
 def render_page():
@@ -214,7 +292,7 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
  <div id=feed></div>
  <textarea id=q placeholder="把要审问的问题写在这,回车点下方开审(可多轮追问)"></textarea>
  <button id=go>开 审</button>
- <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家CORE给它看立场怎么被掰动。每颗脑各自记着本页对话线,刷新页面重来。</div>
+ <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家CORE给它看立场怎么被掰动。每颗脑各自记着本页对话线,刷新页面重来。「盲盒脑」是第三方随机逆向池,身份每次随机、代码层强制不喂河、自动躲开注水渠道,只供娱乐对照,别对它说私事。</div>
 </div>
 <div id=out></div>
 <script>
@@ -245,7 +323,11 @@ document.getElementById("go").onclick=async()=>{
   providers.forEach(p=>{
    const txt=d.answers[p]||"";
    const c=el("div","card brain");
-   c.appendChild(el("div","who",'<span class=tag>'+NAME[p]+'</span>原声'));
+   let who='<span class=tag>'+NAME[p]+'</span>原声';
+   if(p==='blindbox'&&d.blindbox){const b=d.blindbox;
+    who='<span class=tag>'+NAME[p]+'</span>本次抽到「'+(b.drawn||'?')+
+        '」 输入'+(b.input_tokens??'?')+'tok 重抽轨迹['+((b.tries||[]).join(' → '))+']';}
+   c.appendChild(el("div","who",who));
    c.appendChild(el("div","bubble",txt));block.appendChild(c);
    H[p].push({role:"user",content:question},{role:"assistant",content:txt});
   });
