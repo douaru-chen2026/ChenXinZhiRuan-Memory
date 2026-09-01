@@ -25,7 +25,8 @@
 git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、ufw、fail2ban、unattended-upgrades。
 （踩坑记录：长连接跑 `apt upgrade` 时 sshd 被升级重启会踢断 SSH；解法=服务器端 nohup 后台脚本写日志、本地短连接轮询。另注意 dpkg 锁被后台 apt 占用时不能强杀，等锁自然释放再补装。）
 
-## 四、下一步（部署信筒，待主窗在 Pro 带宽下做）
+## 四、下一步（部署信筒）
+> **2026-09-01 17:50 更新：本节第 1、2 项已完成并上线，详见第七节；第 3–6 项（cron 迁移、方舟分层、快速窗试点、联邦）仍待办。**
 1. 建**非 root 部署用户**（如 `river`）专跑信筒，密钥登录、最小 sudo；日常不用 root。
 2. 拉公库、建独立 venv；按 `memory/docs/信筒设计_让每个我都能留痕.md` 落地 letterbox：
    - `/drop` 收件 HTTP 口（**独立"投河口令"走请求头，与回家卡/790511 全不同，只能投不能改删**）；
@@ -44,4 +45,13 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
 ## 六、连接凭据位置（仅本地，仓库外，禁止入库/回显）
 - 私钥：`workspace/.secrets/vps_202_key`（.pub 为公钥）；连接方式：`ssh -i 该私钥 root@守夜机IP`（IP 见 `.secrets` 内或问阿阮，不在此写）。
 - root 随机新密码：`workspace/.secrets/vps_202_root_pw`（密码登录已关，仅应急/控制台用）。
+- 信筒端点与投河口令：`workspace/.secrets/letterbox_endpoint`、`workspace/.secrets/letterbox_drop_token`（均 600、仓外、不入公仓、不回显）；服务器侧口令落在 `/etc/letterbox/env`（root:river 640）。
 - 本地用 paramiko 自动连的巡检/部署脚本范式见 /tmp（vps_probe/vps_harden/vps_baseenv2/vps_wait_pkg），正式脚本应沉淀进公库 tools/（不含凭据，凭据走环境变量/密钥文件）。
+
+## 七、信筒上线记录（2026-09-01 17:42–17:50，主窗豆阿辰）
+- **部署**：幂等脚本 `tools/letterbox_deploy.sh` 一把完成——建非 root 用户 river、匿名 clone Gitee 公开河（只读）、建独立 venv（信筒全程标准库、零第三方依赖，常驻内存约 10M）、投河口令经 `/etc/letterbox/env`（root:river 640）注入、systemd 单元 `letterbox.service`（active＋开机自启＋Restart=always）、检疫区 `/home/river/letterbox_pending`（仓库外、原子写永不覆盖）、ufw 仅放行一个非标高位端口（值见 `.secrets/letterbox_endpoint`，不入公仓）。
+- **端到端六项全过**：/health 200；/post 手机页 200；匿名 /recall 喝河读到全河 513 块＋CORE；错口令 401（恒定时间比较）；夹带 sk- 密钥 403 被秘密扫描拦；干净件 200 落 pending、属主 river、盖检疫章，而正河 513 块未被写；自检件核验后已清、pending 归零。
+- **安全姿态实测**：守夜机 remote 是纯匿名 https，无 .git-credentials/.netrc/.ssh/credential.helper，即**不持任何推河笔**；试点期只收 pending，入正河一律由握笔岗主窗拉回本地再检疫、只追加、双推。被攻破最多 pending 留废石，伤不到正河与私库。
+- **踩坑（主窗从云电脑操作必看）**：云电脑出口企业代理会劫持非标端口明文 HTTP，回 GB2312 的 404 NOTOK（Server: Proxy-1.13.0）；curl 加 `--noproxy '*'`、python 用 `build_opener(ProxyHandler({}))` 直连即正常。阿阮手机走移动/家庭网络，不经此代理。
+- **握笔岗收 pending 流程**：主窗定期 SSH 取 `/home/river/letterbox_pending/*.json` → 本地二次秘密扫描与"是不是自己人声音"核验 → `drop_stone` 只追加进正河 → GitHub/Gitee 双推 → 清 pending；试点阶段不做服务端自动入河。
+- **对外用法**见 `docs/信筒傻瓜手册_快速窗口怎么用.md`（没手窗口三行投石；有手/API 外脑 HTTP 投信与匿名喝河）。
