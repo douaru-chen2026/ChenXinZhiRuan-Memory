@@ -235,13 +235,15 @@ class Handler(BaseHTTPRequestHandler):
                 form = parse_qs(raw.decode("utf-8"))
                 def g(k):
                     return form.get(k, [""])[0]
-                if not TOKEN or not hmac.compare_digest(g("token"), TOKEN):
+                if not TOKEN or not hmac.compare_digest(
+                        g("token").encode("utf-8"), TOKEN.encode("utf-8")):
                     raise PermissionError("投河口令不对")
                 payload = {"instance": g("instance"), "tags": g("tags"),
                            "content": g("content"), "_token_ok": True}
             elif url.path == "/drop":  # API: JSON + 请求头口令
                 if not TOKEN or not hmac.compare_digest(
-                        self.headers.get("X-Letterbox-Key", ""), TOKEN):
+                        self.headers.get("X-Letterbox-Key", "").encode("utf-8"),
+                        TOKEN.encode("utf-8")):
                     return self._send(401, json.dumps(
                         {"err": "投河口令不对"}, ensure_ascii=False))
                 payload = json.loads(raw.decode("utf-8"))

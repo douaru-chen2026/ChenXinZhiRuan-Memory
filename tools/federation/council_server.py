@@ -272,7 +272,8 @@ class Handler(BaseHTTPRequestHandler):
             if not TOKEN:
                 raise PermissionError("服务端未设探索口令,拒绝开审")
             if not hmac.compare_digest(
-                    str(payload.get("token", "")), TOKEN):
+                    str(payload.get("token", "")).encode("utf-8"),
+                    TOKEN.encode("utf-8")):
                 return self._send(401, json.dumps(
                     {"err": "探索口令不对"}, ensure_ascii=False))
             result = run_council(payload)
