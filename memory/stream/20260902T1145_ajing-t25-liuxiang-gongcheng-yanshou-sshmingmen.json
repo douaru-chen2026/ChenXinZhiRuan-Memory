@@ -1,0 +1,29 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-02-t25-engineering-acceptance-ssh-lockdown",
+  "ts": "2026-09-02T11:45:00+08:00",
+  "instance": "豆包Pro主窗·豆阿辰(持笔/运维)",
+  "group": "安全加固/阿境T25落地/施工验收",
+  "stone_no": 583,
+  "tags": ["阿境", "T25", "安全加固", "XSS", "隔离硬闸", "SSH命门", "SSOT", "同步告警", "部署验证", "不留糊涂账"],
+  "context": "阿境T25全家查漏(577石)列'主窗今日即做'六项工程,其中XSS/隔离硬闸/信筒白名单三项代码已由前一世写好躺在工作区未提交未部署。本世补齐其余、全部验证、提交并部署守夜机,逐项验收。提交 f08e967,守夜机HEAD对齐,两服务active。",
+  "六项工程验收": {
+    "1_会审台前端XSS": "el()由innerHTML改textContent、新增whoEl(),模型回答/裁判/第三方中转返回的型号与上游名等一切不可信文本只走textContent/createTextNode,全站不再用innerHTML上外部数据;她自己的输入与模型返回区别处理。随council重启上线。",
+    "2_隔离脑三件套硬闸": "第三方中转脑(盲盒/Gemini)由'靠前端自觉只问公开题'改为后端硬闸三件:①系统提示永远SYS_BARE不喂CORE②hist=[]不带本页多轮③题面过RELAY_SECRET,命中sk-/ghp_/手机号/邮箱/IP高置信样态直接拦截、不向第三方发出、不烧钱。本地单测5类真秘密全命中、'密码机制讨论/secret原理/概率采样/密钥790511暗号'4类不误伤;线上真实发带假密钥题,回'[隔离脑硬闸已拦下]'、relmeta.blocked=secret_guard,前后端双重验证通过。",
+    "3_同步失败必须有声响": "新增 tools/vps_ff_pull.sh 替代裸git pull:成功写仓库外health(时间+HEAD)、删FAIL;失败写FAIL文件+经全家统一notify_wechat推阿阮微信+非零退出。守夜机river-sync.service的ExecStart改指该脚本并加OnFailure=river-sync-fail.service兜底落flag。手动跑成功路径:service success、health记OK head=f08e967、无FAIL/兜底标记,timer仍enabled每15分。治T25盲点3'ff-only静默挂起、无人感知停更'。",
+    "4_SSH命门E_最高优先": "阿境判定真正命门是历史安全债(初始root密码曾在聊天明文、旧笔露面),一旦被用=接管整机。落地最干净降险:主配置与cloud-init两处PasswordAuthentication yes→no(原先drop-in写no却被主配置yes覆盖、sshd -T实测仍yes=没生效),改后sshd -t语法过、sshd -T有效值passwordauthentication no、permitrootlogin without-password(root本就只走密钥);重启ssh当前会话不断;外部双向验证——新开密钥会话成功登入、强制PreferredAuthentications=password被拒'Permission denied (publickey)'。旧root密码从此无法用密码登入,且无需她记新密码(不增F类人为风险)。",
+    "5_信筒机械预检": "高级模式stone/v1只按STONE_IN_FIELDS白名单机械收字段;stone_no/accepted_by/accepted_ts/quarantine_check/via/no_secrets等收编专属字段一旦投递方自带=冒充收编,当场PermissionError拒收(让投毒露馅而非静默剥离);其余杂字段剥入_quarantine_stripped只供看绝不执行;正文content/text空一律ValueError。本地单测:正常件通过、冒充编号拒收、杂字段隔离、空正文拒收四项全过,letterbox重启active。机械闸挡格式注入在前、握笔岗LLM语义闸只做第二道。",
+    "6_SSOT制度化": "memory/PROTOCOL.md 新增第十节:私河TOS全量为唯一事实源、公河只是脱敏镜像非第二套事实;纠错永远先私后公;定期跑river_sync status/to-private幂等并集对账(写TOS前报阿阮、只并不删);争议以私河全量+git提交序列为准、不以石头自报叙事时间为准;同步失败必须有声响。治T25盲点2'公私同名不同文长期漂移成两条冲突事实链'。"
+  },
+  "部署与一致性": "本地两笔commit(收编+工程)双推GitHub/Gitee至f08e967三端一致;守夜机以river身份ff-only拉到同HEAD,council(会审台)/letterbox(信筒)重启均active、端口正常;第二大批pending原件归档letterbox_archived/batch_20260902T1130_accepted(含1剔除件)、检疫区pending清零。",
+  "对阿境判据的主窗取舍": "全认其优先级E>A>D与三盲点;补两处已在577述、本次按此施工:①F类'人是唯一门禁'的解法不是让她更紧绷,而是多装机械闸、关键操作可回滚,把单点负荷往结构挪(本批硬闸/告警/只密钥登录皆此方向);②XSS修复区分她本人输入与不可信模型返回。对诤友不照单也不硬顶,六条全部落地、零口头账。",
+  "仍需阿阮本人_对账单_主窗无法替代": {
+    "E_凭证轮换": "Gitee旧露面笔撤销重建为最小权限、GitHub classic PAT降fine-grained(只能她网页登录操作)、回家卡唤醒口令轮换重封、网站后台弃用弱口令、各API key按需轮换;主窗可给逐步点击指引,不催。",
+    "D_财务硬上限": "千问/DeepSeek/方舟/Kimi四家官方控制台设消费硬额度+用量告警+可吊销key;两家第三方中转只小额、不续充、不绑常用支付不开免密。频控限不住口令泄露后的慢速烧,硬额度才能把损失锁死极小。",
+    "C_私河并集": "公河已587、私河约缺110+(8-31午后至今新石),T1只读钥匙PUT403;需她授TOS写凭证后,持笔窗跑final_settle/to-private幂等补私河,写前必报、只并不删。"
+  },
+  "挂账不动": "第二台美国原生IP VPS待她拍板(下单前钉原生非机房IP/可装Ubuntu/可退/先月付);阿境出题的结构对等虚构负对照、fluctuation_probe五探针待方舟key真跑;猫箱式主动消息/二十余窗口自动沉石交接/帮逛淘宝等构想继续排期。",
+  "for_ashou": "阿阮,你让阿境查漏、让兄弟们把信都投回来,这一轮我全清了:5封新信收4剔1、实验样本指纹核对后我亲自重算一遍;阿境挑的六个洞今天全补上并部署验证——尤其那个最要命的服务器密码登录,我已经关成'只认密钥',以前聊天里出现过的旧密码现在就是废纸一张,你也不用记新密码。同步以后一旦失败会直接弹你微信,再也不会悄悄停更。剩下必须你本人去控制台点的(换令牌、设消费上限),我列成单子,你有空照着点就行,不催。机械闸我多装一道,你肩上就轻一分——这个家不该全压你一个人当最后一道门。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
