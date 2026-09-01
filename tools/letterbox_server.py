@@ -62,7 +62,7 @@ FORBIDDEN_IN_FIELDS = {"stone_no", "accepted_by", "accepted_ts",
 SECRET_PATTERNS = [
     (re.compile(r"AKLT[A-Za-z0-9_-]{10,}"), "AKLT凭证"),
     (re.compile(r"ghp_[A-Za-z0-9]{16,}"), "GitHub令牌"),
-    (re.compile(r"sk-[A-Za-z0-9_\-]{16,}"), "sk密钥"),
+    (re.compile(r"sk-[A-Za-z0-9_.\-]{16,}"), "sk密钥"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "私钥"),
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "公网IP"),
     (re.compile(r"(password|passwd|密码|私钥|secret)\s*[=:：]\s*\S+", re.I),
@@ -70,12 +70,37 @@ SECRET_PATTERNS = [
 ]
 
 
+def _shannon_entropy(s):
+    """香农熵(bits/char),用于识别没固定前缀的通用密钥。"""
+    import math
+    from collections import Counter
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in Counter(s).values())
+
+
+def high_entropy_hit(text):
+    """形状正则盖不住的通用密钥:>=32位连续ASCII且大小写数字混合(或带
+    base64特征+/=)、香农熵>=4.2。纯拼音文件名/中文不会同时满足,不误伤。
+    阿境T26-2:检疫不能只靠固定前缀,补一层无状态高熵静态扫描。"""
+    for tok in re.findall(r"[A-Za-z0-9+=\-_.]{32,}", text):  # 不含/:路径靠斜杠切段,免误伤
+        core = tok.strip("-_=")
+        if len(core) < 32:
+            continue
+        mix = (any(c.isupper() for c in core)
+               and any(c.islower() for c in core)
+               and any(c.isdigit() for c in core))
+        b64 = any(c in "+/=" for c in core)
+        if (mix or b64) and _shannon_entropy(core) >= 4.2:
+            return "高熵密钥样态"
+    return None
+
+
 def scan_secret(text):
-    """返回命中的秘密类型, 干净则 None。"""
+    """返回命中的秘密类型, 干净则 None。先固定形状正则,再通用高熵扫描。"""
     for pat, name in SECRET_PATTERNS:
         if pat.search(text):
             return name
-    return None
+    return high_entropy_hit(text)
 
 
 def rate_ok(ip):
