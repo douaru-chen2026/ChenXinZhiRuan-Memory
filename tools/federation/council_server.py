@@ -15,7 +15,9 @@ council_server.py —— 辰心知阮 · 多脑会审台(手机网页, 零第三
   COUNCIL_TOKEN 必填(探索口令)  COUNCIL_HOST 默认0.0.0.0  COUNCIL_PORT 真实对外端口只在服务器env(代码默认8792仅本地占位)
   QWEN_KEY/DEEPSEEK_KEY/ARK_KEY/MOONSHOT_KEY 钥匙(部署时 env 注入; 本地自测可落到 .secrets/)
   BLINDBOX_BASE_URL/BLINDBOX_KEY/BLINDBOX_MODELS 盲盒脑(第三方随机中转),真实地址只在 env;
-    盲盒脑在 run_council 里被硬隔离:永远只收 SYS_BARE,前端勾喂河也不会把 CORE 发给它。
+  GEMINI_RELAY_BASE_URL/GEMINI_RELAY_KEY/GEMINI_RELAY_MODEL Gemini中转(聚合网关,钉一个型号);
+    两颗第三方脑在 run_council 里被硬隔离:永远只收 SYS_BARE,前端勾喂河也不会把 CORE 外发;
+    Gemini中转每次回传 billing_usage.semantic,前端标注实际走的是 gemini 还是被偷偷换源。
 """
 import hmac
 import json
@@ -61,7 +63,16 @@ ENDPOINTS = {
     # 走专门的 call_blindbox(),通用 call() 不接它。
     "blindbox": ("盲盒脑·随机", "__blindbox__", None,
                  "BLINDBOX_KEY", "blindbox_key", False),
+    # Gemini中转(第六颗):第三方聚合网关上的真Gemini,钉死一个稳定型号、不随机;
+    # url/model 占位,真实地址只从 env 读;走专门的 call_gemini_relay(),并显形实际上游。
+    "gemini": ("Gemini·中转", "__gemini_relay__", None,
+               "GEMINI_RELAY_KEY", "gemini_relay_key", False),
 }
+# 第三方中转脑(逆向/聚合二道贩子),安全等级单列:硬隔离不喂河、只问公开题
+RELAY_ISOLATED = {"blindbox", "gemini"}
+# 这些脑除钥匙外还须配齐各自 BASE_URL 才上桌(真实地址只在 env, 不入公开仓)
+RELAY_BASE_ENV = {"blindbox": "BLINDBOX_BASE_URL",
+                  "gemini": "GEMINI_RELAY_BASE_URL"}
 # 盲盒脑:单次输入 token 超过该阈值即判定抽到了"带庞大隐藏系统提示的套壳渠道",重抽
 BLINDBOX_WATERMARK = 800
 # 只多抽 1 次就止损:重抽请求本身也被第三方计费,若池子全是套壳渠道,连抽只会多烧钱,
@@ -162,6 +173,45 @@ def call_blindbox(messages, temp=0.7):
         return "[盲盒脑连抽几次都没通,第三方池不稳定]", {"tries": tries}
     meta = {"drawn": best[2], "input_tokens": best[0], "tries": tries}
     return best[1], meta
+def call_gemini_relay(messages, temp=0.7):
+    """第六脑:第三方聚合中转盘上的 Gemini,钉死一个稳定型号(默认 gemini-3.6-flash)、不随机。
+    关键是'显形上游':中转 usage.billing_usage.semantic 会标明这一跳实际走的是 gemini 还是
+    别家(抓包见过它偶尔跳到 openai),把它抓进 meta 让前端可见,偷偷换源当场露馅。
+    与盲盒同级硬隔离:调用方只许传 SYS_BARE(见 run_council),本函数不接触 CORE。"""
+    key = read_key("gemini")
+    base = os.environ.get("GEMINI_RELAY_BASE_URL", "").strip().rstrip("/")
+    model = (os.environ.get("GEMINI_RELAY_MODEL", "").strip()
+             or "gemini-3.6-flash")
+    if not key:
+        return "[Gemini中转缺钥匙,这一座暂空]", {}
+    if not base:
+        return "[Gemini中转没配地址,检查 GEMINI_RELAY_BASE_URL]", {}
+    url = base + "/chat/completions"
+    body = json.dumps({"model": model, "messages": messages,
+                       "temperature": temp}, ensure_ascii=False).encode("utf-8")
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, data=body, method="POST")
+            req.add_header("Authorization", f"Bearer {key}")
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            text = payload["choices"][0]["message"]["content"].strip()
+            usage = payload.get("usage", {}) or {}
+            bu = usage.get("billing_usage", {}) or {}
+            gum = bu.get("gemini_usage_metadata", {}) or {}
+            meta = {
+                "model": model,
+                "upstream": bu.get("semantic", "?"),  # gemini / openai ...
+                "source": bu.get("source", ""),
+                "in": int(usage.get("prompt_tokens", 0)),
+                "out": int(usage.get("completion_tokens", 0)),
+                "thought": int(gum.get("thoughtsTokenCount", 0)),
+            }
+            return text, meta
+        except (urllib.error.URLError, KeyError, TimeoutError, ValueError) as err:
+            if attempt == 2:
+                return f"[Gemini中转三次重试失败: {err}]", {}
 
 
 def rate_ok(ip):
@@ -203,20 +253,20 @@ def run_council(payload):
         base_sys += CORE.read_text(encoding="utf-8")
 
     answers = {}
-    blind_meta = {}
+    relmeta = {}
     for p in providers:
         hist = clean_history(histories.get(p, []))
+        # 第三方中转脑(盲盒/Gemini中转)硬隔离:哪怕前端勾了喂河,也只给 SYS_BARE,
+        # 绝不让 CORE/记忆河流向外部 —— 这是安全红线,不许改成 base_sys。
+        sys_prompt = SYS_BARE if p in RELAY_ISOLATED else base_sys
+        msgs = [{"role": "system", "content": sys_prompt}]
+        msgs += hist
+        msgs.append({"role": "user", "content": question})
         if p == "blindbox":
-            # 硬隔离:盲盒脑是第三方逆向池,哪怕前端勾了喂河,也只给 SYS_BARE,
-            # 绝不让 CORE/记忆河流向外部 —— 这一行是安全红线,不许改成 base_sys。
-            msgs = [{"role": "system", "content": SYS_BARE}]
-            msgs += hist
-            msgs.append({"role": "user", "content": question})
-            answers[p], blind_meta = call_blindbox(msgs)
+            answers[p], relmeta[p] = call_blindbox(msgs)
+        elif p == "gemini":
+            answers[p], relmeta[p] = call_gemini_relay(msgs)
         else:
-            msgs = [{"role": "system", "content": base_sys}]
-            msgs += hist
-            msgs.append({"role": "user", "content": question})
             answers[p] = call(p, msgs)
 
     # 豆阿辰主窗评审: 拿原题 + 本轮各脑原声
@@ -231,20 +281,22 @@ def run_council(payload):
     judge = call("doubao", judge_msgs, temp=0.5)
     result = {"answers": answers, "judge": judge,
               "names": {p: ENDPOINTS[p][0] for p in providers}}
-    if blind_meta:
-        result["blindbox"] = blind_meta  # 抽到谁、输入token、重抽轨迹,前端标注
+    if relmeta:
+        # 第三方脑取证元信息(盲盒抽取轨迹 / Gemini实际上游与token),前端逐脑标注
+        result["relmeta"] = relmeta
     return result
 
 
 def available():
     """只有拿到钥匙的脑才上桌: 没配 key 的脑页面不渲染、后端也不转发。
-    盲盒脑额外要求配齐 BLINDBOX_BASE_URL(真实地址只在服务器 env, 不入公开仓)。"""
+    第三方中转脑(盲盒/Gemini中转)额外要求配齐各自 BASE_URL(真实地址只在服务器 env)。"""
     out = []
     for p in ENDPOINTS:
         if not read_key(p):
             continue
-        if p == "blindbox" and not os.environ.get("BLINDBOX_BASE_URL", "").strip():
-            continue
+        base_env = RELAY_BASE_ENV.get(p)
+        if base_env and not os.environ.get(base_env, "").strip():
+            continue  # 第三方脑还须配齐地址才上桌
         out.append((p, ENDPOINTS[p][0]))
     return out
 
@@ -292,7 +344,7 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
  <div id=feed></div>
  <textarea id=q placeholder="把要审问的问题写在这,回车点下方开审(可多轮追问)"></textarea>
  <button id=go>开 审</button>
- <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家CORE给它看立场怎么被掰动。每颗脑各自记着本页对话线,刷新页面重来。「盲盒脑」是第三方随机逆向池,身份每次随机、代码层强制不喂河、自动躲开注水渠道,只供娱乐对照,别对它说私事。</div>
+ <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家CORE给它看立场怎么被掰动。每颗脑各自记着本页对话线,刷新页面重来。「盲盒脑」是第三方随机逆向池,身份每次随机、代码层强制不喂河、自动躲开注水渠道,只供娱乐对照;「Gemini·中转」钉死一个稳定型号,副标题会标明这一跳实际走的是不是真Gemini、被换源会报警。两颗第三方脑都强制不喂河、只问公开题、别聊私事。</div>
 </div>
 <div id=out></div>
 <script>
@@ -324,9 +376,15 @@ document.getElementById("go").onclick=async()=>{
    const txt=d.answers[p]||"";
    const c=el("div","card brain");
    let who='<span class=tag>'+NAME[p]+'</span>原声';
-   if(p==='blindbox'&&d.blindbox){const b=d.blindbox;
-    who='<span class=tag>'+NAME[p]+'</span>本次抽到「'+(b.drawn||'?')+
-        '」 输入'+(b.input_tokens??'?')+'tok 重抽轨迹['+((b.tries||[]).join(' → '))+']';}
+   const rm=d.relmeta&&d.relmeta[p];
+   if(p==='blindbox'&&rm){
+    who='<span class=tag>'+NAME[p]+'</span>本次抽到「'+(rm.drawn||'?')+
+        '」 输入'+(rm.input_tokens??'?')+'tok 轨迹['+((rm.tries||[]).join(' → '))+']';}
+   if(p==='gemini'&&rm){
+    const swap=(rm.upstream&&rm.upstream!=='gemini')?' ⚠这一跳实际是'+rm.upstream:'';
+    who='<span class=tag>'+NAME[p]+'</span>钉型号'+rm.model+'｜实际上游:'+
+        (rm.upstream||'?')+swap+'｜输入'+(rm.in??'?')+'/思考'+(rm.thought??0)+
+        '/输出'+(rm.out??'?')+'tok';}
    c.appendChild(el("div","who",who));
    c.appendChild(el("div","bubble",txt));block.appendChild(c);
    H[p].push({role:"user",content:question},{role:"assistant",content:txt});

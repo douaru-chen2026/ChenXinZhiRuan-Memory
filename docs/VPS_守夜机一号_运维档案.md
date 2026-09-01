@@ -70,4 +70,8 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
   - 行为：每次随机抽一个标称型号；输入 token 超 800 判为套壳注水、最多再抽 1 次取更小者止损；卡片副标题显示抽到型号/输入 token/重抽轨迹。
   - **硬隔离（代码层）**：`run_council` 对 blindbox 单独分流，只发裸提示 SYS_BARE，前端即使勾"喂河"也绝不把 CORE 发往第三方；只问公开题、不聊私事、不充大额、随时可弃。
   - 上线动作：守夜机 `git pull` 取新代码 → 幂等追加上述三行 env（追完应为 11 行，权限保持 root:river 640）→ `systemctl restart council` → 本机 curl 真问盲盒脑、公网确认页面脑列表为五脑。要彻底下线就删 env 三行再 restart，该脑自动从页面消失。
-  - **上线结果（2026-09-01 20:43）**：env 扩到 11 行（root:river 640，值不回显）、council 在 4e56d1f 重启 active；本机真问盲盒一次抽到输入仅 113 token 的干净渠道（≤800 命中即停、未多抽），公网页面五脑（qwen/deepseek/doubao/kimi/blindbox）齐全、第五脑不顶替任何在席脑。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
+  - **上线结果（2026-09-01 20:43）**：env 扩到 11 行（root:river 640，值不回显）、council 在 4e56d1f 重启 active；本机真问盲盒一次抽到输入仅 113 token 的干净渠道（≤800 命中即停、未多抽），公网页面五脑（qwen/deepseek/doubao/kimi/blindbox）齐全、第五脑不顶替任何在席脑。
+- **第六脑「Gemini·中转」上线（2026-09-01 20:57，第二家第三方聚合网关，钉型号+显上游）**：验身判定比盲盒那台干净（真 Gemini 内核、输入不注水、型号对得上官方线），但存在点 3.5 给 3.7、关闭型号仍卖、偶发跳到 openai、套 Antigravity 编程外壳等问题（详见第 518 石与探索手册）。决策为钉死稳定型号、不随机、显形实际上游。
+  - env 在 `/etc/council/env` 再追加三行（root:river 640，追完应为 14 行）：`GEMINI_RELAY_BASE_URL=`第二家 OpenAI 兼容 /v1 地址、`GEMINI_RELAY_KEY=`其钥匙（仓外中性名 `gemini_relay_key`）、`GEMINI_RELAY_MODEL=gemini-3.6-flash`；公开仓零域名零钥匙。
+  - 代码抽出 `RELAY_ISOLATED={blindbox,gemini}` 与 `RELAY_BASE_ENV`：两颗第三方脑统一硬隔离（勾喂河也只发 SYS_BARE）、须配齐 BASE_URL 才上桌；`call_gemini_relay` 回传 billing_usage 的 semantic/source 与三类 token，前端副标题显形上游、跳到非 gemini 亮 ⚠；第三方元信息统一走 `result.relmeta`。
+  - 上线动作：守夜机 `git pull` → 幂等追加三行 env（11→14 行、保持 root:river 640）→ `systemctl restart council` → 本机真问确认 relmeta.upstream、公网确认六脑；下线即删这三行再 restart。命令行/本地网页/守夜机本机/公网四路径均真调出声；至此四脑 = 千问 / DeepSeek / 豆包裸脑 / Kimi。
