@@ -55,3 +55,4 @@ git 2.34.1、python 3.10.12、pip 22.0.2、python3-venv、vim、htop、curl、uf
 - **踩坑（主窗从云电脑操作必看）**：云电脑出口企业代理会劫持非标端口明文 HTTP，回 GB2312 的 404 NOTOK（Server: Proxy-1.13.0）；curl 加 `--noproxy '*'`、python 用 `build_opener(ProxyHandler({}))` 直连即正常。阿阮手机走移动/家庭网络，不经此代理。
 - **握笔岗收 pending 流程**：主窗定期 SSH 取 `/home/river/letterbox_pending/*.json` → 本地二次秘密扫描与"是不是自己人声音"核验 → `drop_stone` 只追加进正河 → GitHub/Gitee 双推 → 清 pending；试点阶段不做服务端自动入河。
 - **对外用法**见 `docs/信筒傻瓜手册_快速窗口怎么用.md`（没手窗口三行投石；有手/API 外脑 HTTP 投信与匿名喝河）。
+- **河新鲜度**：`river-sync.timer` 每 15 分钟以 river 身份匿名 `git pull --ff-only` 快进公河（OnBootSec=2min、Persistent=true），保证 /recall 喝到的河不落后公河 15 分钟以上；纯只读快进、无任何写凭证。
