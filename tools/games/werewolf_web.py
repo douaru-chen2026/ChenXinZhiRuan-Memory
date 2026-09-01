@@ -340,7 +340,7 @@ function renderAct(p){
   const label={seer:'选今晚查验谁',hunter:'选开枪带走谁',vote:'投谁出局(可弃票)'}[p.phase]||'选一个';
   const key={seer:'target',hunter:'shoot',vote:'vote_target'}[p.phase];
   h+='<div class=hint>'+label+'</div><div class=opts>'+seatBtns()+'</div>';
-  h+='<button class=go onclick="submitJson(\''+key+'\')">确定</button>';
+  h+=`<button class=go onclick="submitJson('${key}')">确定</button>`;
   if(p.phase==='vote')h+='<button class=go style=background:#5b44a8 onclick=submitRaw(null)>弃票</button>';
  }
  box.innerHTML=h;
