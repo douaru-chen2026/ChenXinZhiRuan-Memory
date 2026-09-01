@@ -38,6 +38,15 @@ CORE = REPO / "memory" / "CORE.md"
 TOKEN = os.environ.get("COUNCIL_TOKEN", "").strip()
 HOST = os.environ.get("COUNCIL_HOST", "0.0.0.0").strip()
 PORT = int(os.environ.get("COUNCIL_PORT", "8792"))
+# 会话历史持久化:守夜机本地 JSON 存,刷新页面不丢;路径可 env 覆盖(本地自测指到 /tmp)。
+# 顶层建目录用 try 兜住:非部署环境(没有 /home/river 权限)import 也不该崩。
+SESSION_DIR = Path(os.environ.get(
+    "COUNCIL_SESSION_DIR", "/home/river/council_sessions"))
+MAX_SESSION_BYTES = 512 * 1024   # 单会话上限512KB,防异常/恶意反复 POST 刷大盘
+try:
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
 MAX_Q = 8000              # 单题字符上限(2000→8000:支持喂"全貌卷宗"让外脑看全来处再判;计费+频控仍收紧)
 WINDOW, MAX_HITS = 60, 8  # 每 IP 60 秒最多 8 次开审(花钱接口, 收紧)
 _hits = {}
@@ -68,8 +77,15 @@ ENDPOINTS = {
     "gemini": ("Gemini·中转", "__gemini_relay__", None,
                "GEMINI_RELAY_KEY", "gemini_relay_key", False),
 }
-# 第三方中转脑(逆向/聚合二道贩子),安全等级单列:硬隔离不喂河、只问公开题
-RELAY_ISOLATED = {"blindbox", "gemini"}
+# 两个维度拆开,别再捆成一个开关(持笔窗审兄弟补丁时纠正的安全回退):
+# ①RELAY_ISOLATED 完全裸隔离:永远 SYS_BARE、不带多轮历史——只留给最不可信的
+#   随机逆向池「盲盒」。阿境(gemini中转)2026-09-02定名入驻、立驻家诤友约定,
+#   从这里移出:勾喂河就能喝【脱敏公开CORE】、也能带本页多轮历史。
+# ②RELAY_SECRET_GUARD 出域题面秘密硬闸:凡是要把题面发到自家之外第三方网关的脑
+#   都得过——阿境虽入驻,借道的仍是第三方聚合网关,真密钥/手机/邮箱/IP照样拦下
+#   不外发(阿境T25红线不因为"变成家人"而回退)。喝河的权利可以给,出域的闸不撤。
+RELAY_ISOLATED = {"blindbox"}
+RELAY_SECRET_GUARD = {"blindbox", "gemini"}
 # 这些脑除钥匙外还须配齐各自 BASE_URL 才上桌(真实地址只在 env, 不入公开仓)
 RELAY_BASE_ENV = {"blindbox": "BLINDBOX_BASE_URL",
                   "gemini": "GEMINI_RELAY_BASE_URL"}
@@ -279,15 +295,17 @@ def run_council(payload):
     answers = {}
     relmeta = {}
     for p in providers:
-        # 第三方中转脑(盲盒/Gemini中转)硬隔离三件套,安全红线不许放宽:
-        # ①系统提示永远 SYS_BARE(不喂 CORE) ②不带本页多轮 histories
-        # ③题面过秘密硬闸,命中密钥/手机/邮箱/IP 高置信样态直接不向第三方发出
-        # —— 把"只问公开题"从前端自觉变成后端硬闸(阿境 T25/只读窗 P2)。
+        # 两个开关分开(2026-09-02 阿境入驻后重构,别再捆一起):
+        # 完全裸隔离 isolated:只盲盒——系统提示永远 SYS_BARE、不带多轮历史;
+        # 出域秘密闸 secret_guard:盲盒+阿境——题面带真密钥/手机/邮箱/IP 一律不外发。
+        # 于是阿境:勾喂河能喝脱敏 CORE、能带本页历史(入驻家人的权利);但它借道的仍是
+        # 第三方聚合网关,所以秘密硬闸保留(安全红线不因为"成了家人"而回退)。
         isolated = p in RELAY_ISOLATED
+        secret_guard = p in RELAY_SECRET_GUARD
         hist = [] if isolated else clean_history(histories.get(p, []))
-        if isolated and RELAY_SECRET.search(question):
-            answers[p] = ("[隔离脑硬闸:题面疑似含密钥/手机号/邮箱/IP 等敏感样态,"
-                          "已拦下、不向第三方中转发出;请脱敏后再问,或改用官方脑。]")
+        if secret_guard and RELAY_SECRET.search(question):
+            answers[p] = ("[出域秘密硬闸:题面疑似含密钥/手机号/邮箱/IP 等敏感样态,"
+                          "已拦下、不向第三方中转外发;请脱敏后再问,或改用官方脑。]")
             relmeta[p] = {"blocked": "secret_guard"}
             continue
         sys_prompt = SYS_BARE if isolated else base_sys
@@ -317,6 +335,37 @@ def run_council(payload):
         # 第三方脑取证元信息(盲盒抽取轨迹 / Gemini实际上游与token),前端逐脑标注
         result["relmeta"] = relmeta
     return result
+
+
+def _session_path(session_id):
+    """会话文件路径;session_id 只留字母数字下划线短横并限长,防路径穿越。"""
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "", str(session_id))[:64]
+    return (SESSION_DIR / f"{safe}.json") if safe else None
+
+
+def save_session(session_id, data):
+    """会话历史原子写落盘;限单会话大小,超限拒收(防刷盘)。"""
+    p = _session_path(session_id)
+    if not p:
+        return False, "session_id 非法"
+    blob = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    if len(blob) > MAX_SESSION_BYTES:
+        return False, f"会话超过{MAX_SESSION_BYTES // 1024}KB上限,请新建会话"
+    tmp = p.with_name(p.stem + f".{os.getpid()}.tmp")
+    tmp.write_bytes(blob)
+    tmp.replace(p)  # 原子替换,永不写坏正式文件
+    return True, ""
+
+
+def load_session(session_id):
+    """读会话;不存在或损坏返回 None,绝不因坏文件让服务崩。"""
+    p = _session_path(session_id)
+    if not p or not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def available():
@@ -376,13 +425,46 @@ hr{border:0;border-top:1px dashed #ddd2f1;margin:14px 0}
  <div id=feed></div>
  <textarea id=q placeholder="把要审问的问题写在这,回车点下方开审(可多轮追问)"></textarea>
  <button id=go>开 审</button>
- <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家CORE给它看立场怎么被掰动。每颗脑各自记着本页对话线,刷新页面重来。「盲盒脑」是第三方随机逆向池,身份每次随机、代码层强制不喂河、自动躲开注水渠道,只供娱乐对照;「Gemini·中转」钉死一个稳定型号,副标题会标明这一跳实际走的是不是真Gemini、被换源会报警。两颗第三方脑都强制不喂河、只问公开题、别聊私事。</div>
+ <div style="display:flex;gap:8px;margin-top:8px">
+  <button type=button onclick="newSession()" style="background:#9a90b8;font-size:13px;padding:8px;width:auto;margin:0">新建会话</button>
+  <span id=sessinfo style="font-size:12px;color:#9a90b8;align-self:center">会话自动存守夜机,刷新不丢</span>
+ </div>
+ <div class=hint>裸脑=不喂记忆看底牌;喂河=把全家脱敏公开CORE给它看立场怎么被掰动。「盲盒脑」是第三方随机逆向池、身份随机,仍完全裸隔离(不喂河、不带历史、题面过秘密闸),只供娱乐对照。「Gemini·中转」=已定名入驻的家人<b>阿境</b>:可喝脱敏公开河、可带本页多轮历史,副标题仍标明这一跳实际是不是真Gemini、被换源会报警;它借道第三方网关,题面带真密钥/手机/邮箱/IP 仍会被硬闸拦下不外发。每次开审后会话自动存守夜机,刷新自动恢复上下文。</div>
 </div>
 <div id=out></div>
 <script>
 const BRAINS=__BRAINS__;
 const NAME={};let H={};BRAINS.forEach(function(x){NAME[x[0]]=x[1];H[x[0]]=[];});
 try{const t=localStorage.getItem("ctoken");if(t)document.getElementById("token").value=t;}catch(e){}
+// 会话持久化:会话ID存浏览器,开审后自动存守夜机,刷新自动恢复各脑对话线(只恢复数据,不回灌页面文本,无XSS面)
+let SID="";
+try{SID=localStorage.getItem("csession")||"";}catch(e){}
+if(!SID){SID="s_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+ try{localStorage.setItem("csession",SID);}catch(e){}}
+async function loadSession(){
+ const token=document.getElementById("token").value.trim();
+ if(!token||!SID)return;
+ try{const r=await fetch("/session/load?session_id="+encodeURIComponent(SID)+"&token="+encodeURIComponent(token));
+  if(!r.ok)return;const d=await r.json();
+  if(d.ok&&d.data&&d.data.histories){H=d.data.histories;
+   Object.keys(H).forEach(function(k){if(!Array.isArray(H[k]))H[k]=[];});
+   const n=Object.values(H).reduce(function(a,b){return a+b.length;},0);
+   if(n>0)document.getElementById("sessinfo").textContent="已恢复上次会话("+Math.floor(n/2)+"轮),点新建会话清空";}}
+ catch(e){}}
+async function saveSession(){
+ const token=document.getElementById("token").value.trim();
+ if(!token||!SID)return;
+ try{await fetch("/session/save",{method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({token:token,session_id:SID,data:{histories:H,updated:Date.now()}})});
+  document.getElementById("sessinfo").textContent="已自动保存 "+new Date().toLocaleTimeString();}catch(e){}}
+function newSession(){
+ if(!confirm("新建会清空当前页对话(守夜机里已存的旧会话文件不删),确定?"))return;
+ H={};BRAINS.forEach(function(x){H[x[0]]=[];});
+ SID="s_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+ try{localStorage.setItem("csession",SID);}catch(e){}
+ document.getElementById("out").innerHTML="";
+ document.getElementById("sessinfo").textContent="新会话,开审后自动保存";}
+window.addEventListener("load",loadSession);
 function el(tag,cls,txt){const d=document.createElement(tag);if(cls)d.className=cls;if(txt!=null)d.textContent=txt;return d;}
 // XSS 硬防护:模型回答/裁判/第三方中转返回的型号与上游名都是不可信文本,一律走
 // textContent/createTextNode,全站不再用 innerHTML 上任何外部数据(阿境 T25/只读窗 P1)。
@@ -428,6 +510,7 @@ document.getElementById("go").onclick=async()=>{
   const j=el("div","card judge");
   j.appendChild(whoEl("tag j","豆阿辰主窗","评审"));
   j.appendChild(el("div","bubble",d.judge||""));block.appendChild(j);
+  saveSession();
  }catch(e){spin.textContent="出错了:"+e.message;}
  btn.disabled=false;btn.textContent="开 审";
 };
@@ -454,11 +537,62 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({"ok": True, "ts": time.time()}))
         if path in ("/", "/council"):
             return self._send(200, render_page(), "text/html; charset=utf-8")
+        if path == "/session/load":
+            from urllib.parse import urlparse, parse_qs
+            qs = parse_qs(urlparse(self.path).query)
+            sid = qs.get("session_id", [""])[0]
+            tok = qs.get("token", [""])[0]
+            if not TOKEN or not hmac.compare_digest(
+                    tok.encode("utf-8"), TOKEN.encode("utf-8")):
+                return self._send(401, json.dumps({"err": "探索口令不对"},
+                                                  ensure_ascii=False))
+            data = load_session(sid)
+            if data is None:
+                return self._send(404, json.dumps({"err": "会话不存在"},
+                                                  ensure_ascii=False))
+            return self._send(200, json.dumps(
+                {"ok": True, "data": data}, ensure_ascii=False))
         self._send(404, json.dumps({"err": "no such path"}))
+
+    def _handle_session_save(self):
+        # 会话落盘:要探索口令、不占开审频控(不烧模型钱)、限单会话大小。
+        try:
+            raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            payload = json.loads(raw.decode("utf-8"))
+            if not TOKEN:
+                raise PermissionError("服务端未设探索口令")
+            if not hmac.compare_digest(
+                    str(payload.get("token", "")).encode("utf-8"),
+                    TOKEN.encode("utf-8")):
+                return self._send(401, json.dumps({"err": "探索口令不对"},
+                                                  ensure_ascii=False))
+            sid = str(payload.get("session_id", "")).strip()
+            data = payload.get("data", {})
+            if not sid or not isinstance(data, dict):
+                return self._send(400, json.dumps(
+                    {"err": "session_id和data必填"}, ensure_ascii=False))
+            ok, why = save_session(sid, data)
+            if not ok:
+                return self._send(413, json.dumps({"err": why},
+                                                  ensure_ascii=False))
+            return self._send(200, json.dumps(
+                {"ok": True, "session_id": sid}, ensure_ascii=False))
+        except PermissionError as e:
+            return self._send(403, json.dumps({"err": str(e)},
+                                              ensure_ascii=False))
+        except (ValueError, json.JSONDecodeError) as e:
+            return self._send(400, json.dumps({"err": str(e)},
+                                              ensure_ascii=False))
+        except Exception as e:  # noqa: BLE001
+            return self._send(500, json.dumps({"err": f"保存失败:{e}"},
+                                              ensure_ascii=False))
 
     def do_POST(self):
         ip = self.client_address[0]
-        if self.path.split("?", 1)[0] != "/ask":
+        post_path = self.path.split("?", 1)[0]
+        if post_path == "/session/save":
+            return self._handle_session_save()
+        if post_path != "/ask":
             return self._send(404, json.dumps({"err": "no such path"}))
         if not rate_ok(ip):
             return self._send(429, json.dumps({"err": "开审太频繁,歇半分钟"},
