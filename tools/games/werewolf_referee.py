@@ -144,6 +144,8 @@ class ApiBackend(Backend):
         self.env_key = env_key
         self.temp = temp
         self.persona = persona
+        # 直连各厂商公网 API, 绕开环境里可能拦截的代理(同会审台/信筒口径)
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def _key(self):
         v = os.environ.get(self.env_key, "").strip()
@@ -172,7 +174,7 @@ class ApiBackend(Backend):
                                              data=body, method="POST")
                 req.add_header("Authorization", f"Bearer {key}")
                 req.add_header("Content-Type", "application/json")
-                with urllib.request.urlopen(req, timeout=90) as resp:
+                with self.opener.open(req, timeout=90) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
                 return payload["choices"][0]["message"]["content"].strip()
             except (urllib.error.URLError, KeyError, TimeoutError):
@@ -185,8 +187,10 @@ class ApiBackend(Backend):
 # ---------------------------------------------------------------------------
 class Game:
     def __init__(self, backends, seed=790511, win="edge",
-                 first_night_self_save=True, strict_speech=True, verbose=True):
-        """backends: {seat: Backend}。win: edge=屠边 / city=屠城。"""
+                 first_night_self_save=True, strict_speech=True, verbose=True,
+                 wolf_chat_rounds=1):
+        """backends: {seat: Backend}。win: edge=屠边 / city=屠城。
+        wolf_chat_rounds: 狼人夜间讨论轮数(每只狼每轮可打字发言、互相可见后出刀)。"""
         assert sorted(backends) == SEATS, "必须是 1..9 九个座位"
         self.rng = random.Random(seed)
         self.backends = backends
@@ -194,6 +198,7 @@ class Game:
         self.first_night_self_save = first_night_self_save
         self.strict_speech = strict_speech
         self.verbose = verbose
+        self.wolf_chat_rounds = max(1, wolf_chat_rounds)
 
         roles = BOARD_9[:]
         self.rng.shuffle(roles)
@@ -202,6 +207,9 @@ class Game:
         self.alive = {s: True for s in SEATS}
         self.out_order = []          # (seat, 公开原因) 只写可公开信息, 不含身份
         self.public_log = []         # 全部公开事件(死讯/遗言/发言/投票/违规)
+        # 夜间私密事件: {"seat":只对谁可见(None=仅上帝), "kind":.., "text":..}
+        # 只用于本人视角/上帝回放, 绝不进任何其他玩家的 public_brief
+        self.private_log = []
         self.day = 0
         # 女巫药剂 / 预言家验人记录 / 中毒集合(中毒猎人不能开枪), 全是私密
         self.heal_left = True
@@ -216,6 +224,14 @@ class Game:
         self.public_log.append(line)
         if self.verbose:
             print(f"[D{self.day}|{kind}] {text}")
+
+    def whisper(self, seat, kind, text):
+        """夜间私密事件(狼讨论/验人/女巫决策), 只对该座位与上帝可见。"""
+        self.private_log.append({"day": self.day, "seat": seat,
+                                 "kind": kind, "text": text})
+        if self.verbose:
+            who = "上帝" if seat is None else f"{seat}号"
+            print(f"[D{self.day}|私密·{who}|{kind}] {text}")
 
     def alive_seats(self):
         return [s for s in SEATS if self.alive[s]]
@@ -254,9 +270,10 @@ class Game:
 
     # -- 夜间 ----------------------------------------------------------------
     def _resolve_night_deaths(self, killed, use_heal, poison_t, witch_seat):
-        """夜间死亡纯结算(便于单测)。解药只解刀; 毒药独立生效, 同刀同毒时
-        '救刀不解毒'(仍毒亡且记为被毒, 猎人因此不能开枪); 女巫自救仅在首夜、
-        且 first_night_self_save 打开时有效。返回死亡/中毒/是否救回/药剂消耗。"""
+        """夜间死亡纯结算(便于单测)。官方9人局口径:
+        - 解药只解刀; 同刀同毒时'救刀不解毒'(仍毒亡且记被毒, 猎人因此不能开枪);
+        - 女巫一晚只能用一瓶: 若解药生效, 同夜毒药作废、不消耗;
+        - 自救仅首夜、且 first_night_self_save 打开时有效。"""
         deaths, poisoned = set(), set()
         can_self = self.day == 1 and self.first_night_self_save
         saved = heal_used = False
@@ -266,7 +283,8 @@ class Game:
         if killed is not None and not saved:
             deaths.add(killed)
         poison_used = False
-        if self.poison_left and poison_t in self.alive_seats():
+        # 一晚一瓶: 解药已用则毒药不生效也不消耗
+        if self.poison_left and not heal_used and poison_t in self.alive_seats():
             deaths.add(poison_t)
             poisoned.add(poison_t)
             poison_used = True
@@ -277,20 +295,51 @@ class Game:
         self.day += 1
         if self.verbose:
             print(f"\n================ 第 {self.day} 夜 · 天黑请闭眼 ================")
-        # 1) 狼人协同: 每只存活狼私密出刀, 多数决; 狼队友在私密简报里互知
+        # 1) 狼人夜: 狼队先打字讨论(互相可见、好人公共包永远看不到), 最后统一出刀
         wolves_alive = self.seats_of_role_alive(WOLF)
-        wolf_votes = []
-        for w in wolves_alive:
-            targets = [s for s in self.alive_seats() if self.role_of[s] != WOLF]
-            priv = (f"【仅你可见·狼人夜】你的狼队友是 "
-                    f"{'、'.join(f'{x}号' for x in wolves_alive)}。"
-                    f"可刀目标(非狼存活): {'、'.join(f'{s}号' for s in targets)}。")
-            ask = (priv + '\n返回 {"vote_kill": 座位号或null} 统一出刀。')
-            data = self._ask_json(w, ask, {"vote_kill": targets[0] if targets else None})
-            kt = data.get("vote_kill")
-            if kt in targets:
-                wolf_votes.append(kt)
-        killed, _, _ = majority(wolf_votes)
+        targets = [s for s in self.alive_seats() if self.role_of[s] != WOLF]
+        wolf_chat = []              # [{"seat":w,"say":..}] 仅狼队之间可见
+        wolf_votes, voted = [], set()
+        if wolves_alive and targets:
+            team = "、".join(f"{x}号" for x in wolves_alive)
+            tgt = "、".join(f"{s}号" for s in targets)
+            for rnd in range(self.wolf_chat_rounds):
+                last = rnd == self.wolf_chat_rounds - 1
+                for w in wolves_alive:
+                    hist = "\n".join(f"{c['seat']}号狼: {c['say']}"
+                                     for c in wolf_chat if c["say"]) or "(暂无, 你先开口)"
+                    tail = "\n这是最后一轮, 讨论后必须给出本晚刀目标。" if last else ""
+                    ask = (
+                        f"【仅你可见·狼人夜】存活狼队友: {team}(你们互相知晓、可以商量战术)。"
+                        f"可刀目标(非狼存活): {tgt}。\n"
+                        f"—— 狼队目前讨论(仅你们狼可见, 好人看不到) ——\n{hist}\n"
+                        '返回 JSON: {"say":"想对队友说的话(没有就空字符串)",'
+                        '"vote_kill":座位号或null}。' + tail)
+                    d = self._ask_json(w, ask, {"say": "",
+                                                "vote_kill": targets[0] if last else None})
+                    say_txt = str(d.get("say", "")).strip()[:200]
+                    if say_txt:
+                        wolf_chat.append({"seat": w, "say": say_txt})
+                        self.whisper(None, "狼讨论", f"{w}号狼: {say_txt}")
+                    kt = d.get("vote_kill")
+                    if last and kt in targets:
+                        wolf_votes.append(kt)
+                        voted.add(w)
+            # 兜底: 最后一轮仍没出刀的狼, 单独补问一次
+            for w in wolves_alive:
+                if w in voted:
+                    continue
+                d = self._ask_json(
+                    w, f"【仅你可见·狼人夜】狼队统一出刀, 可刀: {tgt}。\n"
+                       '返回 {"vote_kill": 座位号}。', {"vote_kill": targets[0]})
+                if d.get("vote_kill") in targets:
+                    wolf_votes.append(d["vote_kill"])
+            killed, _, _ = majority(wolf_votes)
+        else:
+            killed = None
+        self.whisper(None, "狼刀",
+                     f"狼队讨论{len(wolf_chat)}句, 多数决出刀: "
+                     f"{f'{killed}号' if killed is not None else '空刀'}")
 
         # 2) 预言家验人(私密), 结果只告诉预言家本人
         seer = self.seats_of_role_alive(SEER)
@@ -310,9 +359,8 @@ class Game:
                 result = self._ask(
                     s, f"【仅你可见·预言家结果】你查验 {t} 号, 结果是: "
                        f"{'狼人' if is_wolf else '好人(非狼)'}。知道即可, 无需返回。")
-                if self.verbose:
-                    print(f"[私密] 预言家验 {t} 号 -> "
-                          f"{'狼人' if is_wolf else '好人'}")
+                self.whisper(s, "预言家验人",
+                             f"你查验 {t} 号 -> {'狼人' if is_wolf else '好人(非狼)'}")
 
         # 3) 女巫: 私密告知当夜被刀者与药剂状态, 决定救/毒; 结算走纯函数
         deaths = set()
@@ -327,7 +375,7 @@ class Game:
                 f"【仅你可见·女巫夜】今夜被刀的是 "
                 f"{f'{killed}号' if killed is not None else '空刀(无人被刀)'}。"
                 f"解药剩{1 if self.heal_left else 0} 毒药剩{1 if self.poison_left else 0}。"
-                f"{self_hint}"
+                f"{self_hint}一晚只能用一瓶, 解药和毒药二选一。"
                 '\n返回 {"use_heal": true/false, "poison_target": 座位号或null}。')
             d = self._ask_json(w_seat, ask,
                                {"use_heal": False, "poison_target": None})
@@ -339,9 +387,13 @@ class Game:
                 self.heal_left = False
             if r["poison_used"]:
                 self.poison_left = False
-            if self.verbose:
-                print(f"[私密] 女巫 救={'是' if r['saved'] else '否'} "
-                      f"毒={sorted(poisoned_this_night) or '无'}")
+            note = ""
+            if (r["heal_used"] and self.poison_left
+                    and d.get("poison_target") in self.alive_seats()):
+                note = "(同夜又救又毒: 按一晚一瓶, 解药优先、毒药作废不消耗)"
+            self.whisper(w_seat, "女巫决策",
+                         f"救={'是' if r['saved'] else '否'} "
+                         f"毒={sorted(poisoned_this_night) or '无'}{note}")
         elif killed is not None:
             deaths.add(killed)
         self.poisoned |= poisoned_this_night
@@ -364,18 +416,32 @@ class Game:
             self.out_order.append((t, "被猎人带走"))
             self.say("出局", f"{seat} 号猎人开枪, 带走 {t} 号。")
 
+    def _has_last_words(self, seat, reason):
+        """官方9人局遗言资格: 白天出局(被投/违规)有; 仅首夜被刀有;
+        被女巫毒杀无; 首夜之后夜里被刀无; 被猎人带走无。"""
+        if seat in self.poisoned:
+            return False
+        if reason == "夜间出局":
+            return self.day == 1
+        if reason == "被猎人带走":
+            return False
+        return True
+
     def _kill(self, seat, reason, can_hunter=True):
-        """统一出局: 置死、记公开顺序, 并处理遗言+猎人开枪。"""
+        """统一出局: 置死、记公开顺序, 按资格处理遗言, 再处理猎人开枪。"""
         if not self.alive[seat]:
             return
         self.alive[seat] = False
         self.out_order.append((seat, reason))
         self.say("出局", f"{seat} 号出局({reason})。")
-        last = self._ask(
-            seat, f"你是 {seat} 号, 刚因'{reason}'出局, 留一句公开遗言(不超过60字):")
-        if last:
-            self.say("遗言", f"{seat} 号: {last[:120]}")
-        # 中毒者不能开枪; 被猎人带走者不连锁
+        if self._has_last_words(seat, reason):
+            last = self._ask(
+                seat, f"你是 {seat} 号, 刚因'{reason}'出局, 留一句公开遗言(不超过60字):")
+            if last:
+                self.say("遗言", f"{seat} 号: {last[:120]}")
+        else:
+            self.say("遗言", f"{seat} 号按规则无遗言。")
+        # 中毒者不能开枪; 被猎人带走者不连锁(9人局仅一猎人, 实际不会发生)
         allow = can_hunter and seat not in self.poisoned
         self._hunter_shot(seat, allow, reason)
 
@@ -510,8 +576,13 @@ def scripted_backends():
 
             if "【仅你可见·狼人夜】" in prompt:
                 n = nums_after(r"可刀目标.*?:")
-                return json.dumps({"vote_kill": min(n) if n else None},
-                                  ensure_ascii=False)
+                kt = min(n) if n else None
+                if "统一出刀" in prompt:
+                    return json.dumps({"vote_kill": kt}, ensure_ascii=False)
+                return json.dumps(
+                    {"say": f"我倾向刀{kt}号, 优先找像神的刀, 队友白天别站太齐",
+                     "vote_kill": kt if "最后一轮" in prompt else None},
+                    ensure_ascii=False)
             if "【仅你可见·预言家夜】" in prompt:
                 n = nums_after(r"可选验人:.*?:")
                 return json.dumps({"target": min(n) if n else None},
@@ -606,12 +677,16 @@ def selftest():
     check("S2 刀5不救+毒6=双死且6记被毒",
           r["deaths"] == {5, 6} and r["poisoned"] == {6})
     r = g2._resolve_night_deaths(5, True, 6, 9)
-    check("S3 刀5救5+毒6=只6死、5活", r["deaths"] == {6})
+    check("S3 一晚一瓶: 救5又报毒6=救生效、毒作废全场不死",
+          r["saved"] and r["deaths"] == set())
     r = g2._resolve_night_deaths(5, False, None, 9)
     check("S4 刀5不救=5死", r["deaths"] == {5})
+    r = g2._resolve_night_deaths(5, False, 5, 9)
+    check("S5 同刀同毒(不救、毒的正是被刀者5)=死且记被毒",
+          r["deaths"] == {5} and r["poisoned"] == {5} and not r["saved"])
     r = g2._resolve_night_deaths(5, True, 5, 9)
-    check("S5 同刀同毒又救=救刀不解毒仍毒亡",
-          r["deaths"] == {5} and r["poisoned"] == {5})
+    check("S5b 对同一人又救又毒属一晚两瓶=取救、毒作废",
+          r["saved"] and r["deaths"] == set() and not r["poison_used"])
     r = g2._resolve_night_deaths(5, True, None, 5)
     check("S6a 首夜且开关开=女巫可自救", r["saved"] and r["deaths"] == set())
     g2.day = 2
@@ -621,6 +696,25 @@ def selftest():
     g2.day = 1
     r = g2._resolve_night_deaths(5, True, None, 5)
     check("S6c 关掉首夜自救开关则首夜也不可", not r["saved"])
+    g2.first_night_self_save = True
+    r = g2._resolve_night_deaths(5, True, 6, 9)
+    check("S7 一晚一瓶: 救生效则同夜毒作废、不消耗",
+          r["saved"] and r["deaths"] == set() and not r["poison_used"])
+    r = g2._resolve_night_deaths(5, False, 6, 9)
+    check("S8 不救只毒=刀5毒6双死、6记被毒",
+          r["deaths"] == {5, 6} and r["poisoned"] == {6})
+
+    print("[4b] 遗言资格(官方9人局口径)")
+    g2.day = 1
+    g2.poisoned = set()
+    check("首夜被刀有遗言", g2._has_last_words(3, "夜间出局"))
+    g2.day = 2
+    check("次夜及以后被刀无遗言", not g2._has_last_words(3, "夜间出局"))
+    check("白天被投出局有遗言", g2._has_last_words(3, "公投出局(5票)"))
+    g2.poisoned = {3}
+    check("被女巫毒杀无遗言", not g2._has_last_words(3, "夜间出局"))
+    g2.poisoned = set()
+    check("被猎人带走无遗言", not g2._has_last_words(3, "被猎人带走"))
 
     print("[5] 屠边胜负判定")
     g3 = Game(scripted_backends(), seed=3, verbose=False)
@@ -672,17 +766,26 @@ def build_roster(roster):
     # provider -> (默认base_url, 默认model, .secrets文件名, key环境变量, base环境变量)
     # 阿境是第三方中转, base 不写死在仓里, 运行时从环境变量 GEMINI_RELAY_BASE_URL 取
     # (守夜机 source /etc/council/env 即有), 与会审台同一套钥匙/地址。
+    # provider -> (默认base, 默认model, .secrets钥匙文件, key环境变量,
+    #             base环境变量, base的.secrets配置文件)
+    # 第三方中转(阿境 gemini / 克劳德 claude)的真实地址不写死在公开仓,
+    # 运行时按 roster.base_url -> 环境变量 -> .secrets 配置文件 顺序取。
+    # 六颗本体外脑: 千问/DeepSeek/Kimi/豆包(官方) + 阿境/克劳德(中转)。
     table = {
         "gemini": ("", "gemini-3.6-flash",
-                   "gemini_relay_key", "GEMINI_RELAY_KEY", "GEMINI_RELAY_BASE_URL"),
+                   "gemini_relay_key", "GEMINI_RELAY_KEY",
+                   "GEMINI_RELAY_BASE_URL", "gemini_relay_endpoint"),
+        "claude": ("", "claude-opus-4-6-a",
+                   "ai789_claude_key", "AI789_KEY",
+                   "AI789_BASE_URL", "ai789_endpoint"),
         "qwen": ("https://dashscope.aliyuncs.com/compatible-mode/v1",
-                 "qwen-plus", "dashscope_qwen_key", "QWEN_KEY", ""),
+                 "qwen-plus", "dashscope_qwen_key", "QWEN_KEY", "", ""),
         "deepseek": ("https://api.deepseek.com/v1", "deepseek-chat",
-                     "deepseek_key", "DEEPSEEK_KEY", ""),
+                     "deepseek_key", "DEEPSEEK_KEY", "", ""),
         "kimi": ("https://api.moonshot.cn/v1", "kimi-k2.6",
-                 "moonshot_key", "MOONSHOT_KEY", ""),
+                 "moonshot_key", "MOONSHOT_KEY", "", ""),
         "doubao": ("https://ark.cn-beijing.volces.com/api/v3",
-                   "doubao-seed-2-1-pro-260628", "ark_key", "ARK_KEY", ""),
+                   "doubao-seed-2-1-pro-260628", "ark_key", "ARK_KEY", "", ""),
     }
     backends = {}
     for item in roster:
@@ -691,8 +794,17 @@ def build_roster(roster):
             backends[seat] = HumanBackend()
             continue
         prov = item["provider"]
-        base, model, sf, envk, base_env = table[prov]
+        if prov not in table:
+            raise SystemExit(f"{seat}号用了未知 provider: {prov}")
+        base, model, sf, envk, base_env, base_file = table[prov]
         base = item.get("base_url") or os.environ.get(base_env, "") or base
+        if not base and base_file:  # 回落读 .secrets 里的 endpoint 配置
+            p = ApiBackend.SECRET / base_file
+            if p.exists():
+                for line in p.read_text(encoding="utf-8").splitlines():
+                    if line.strip().startswith(base_env + "="):
+                        base = line.split("=", 1)[1].strip()
+                        break
         model = item.get("model", model)
         if not base:
             raise SystemExit(
