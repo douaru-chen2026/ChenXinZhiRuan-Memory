@@ -37,7 +37,7 @@ ENDPOINTS = {
     # Kimi(月之暗面), OpenAI 兼容; 需要 .secrets/moonshot_key 或环境变量, 缺了自动跳过
     "kimi": ("Kimi",
              "https://api.moonshot.cn/v1/chat/completions",
-             os.environ.get("MOONSHOT_MODEL", "moonshot-v1-32k"),
+             os.environ.get("MOONSHOT_MODEL", "kimi-k2.6"),
              "moonshot_key", False),
 }
 
@@ -66,7 +66,7 @@ def call(provider, system, user, temp):
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "temperature": temp,
+        "temperature": 1 if provider == "kimi" else temp,  # Kimi K2只接受1
     }
     if need_thinking:  # 方舟豆包显式关内置思考, 与外脑同级
         body["thinking"] = {"type": "disabled"}

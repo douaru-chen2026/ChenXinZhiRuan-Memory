@@ -51,7 +51,7 @@ ENDPOINTS = {
     # Kimi(月之暗面)第四颗脑, OpenAI 兼容; 模型名以开放平台控制台为准, 可用 MOONSHOT_MODEL 覆盖
     "kimi": ("Kimi",
              "https://api.moonshot.cn/v1/chat/completions",
-             os.environ.get("MOONSHOT_MODEL", "moonshot-v1-32k"),
+             os.environ.get("MOONSHOT_MODEL", "kimi-k2.6"),
              "MOONSHOT_KEY", "moonshot_key", False),
 }
 
@@ -88,7 +88,9 @@ def call(provider, messages, temp=0.7):
     key = read_key(provider)
     if not key:
         return f"[缺钥匙,{name} 这一座暂空]"
-    body = {"model": model, "messages": messages, "temperature": temp}
+    # Kimi K2 系列只接受 temperature=1, 传别的会被 400 拒
+    body = {"model": model, "messages": messages,
+            "temperature": 1 if provider == "kimi" else temp}
     if need_thinking:
         body["thinking"] = {"type": "disabled"}
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
