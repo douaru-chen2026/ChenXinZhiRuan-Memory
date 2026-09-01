@@ -67,23 +67,62 @@ def parse_seats(prompt):
 
 
 class WebBackend(W.Backend):
-    """阿阮的 human 座后端: 轮到她时把待办挂到 hub, 阻塞等页面提交。"""
+    """阿阮的 human 座后端: 轮到她时把待办挂到 hub, 阻塞等页面提交。
+    会玩式倒计时: 到点没操作就托管安全默认动作, 绝不让整局死等她一人;
+    她也可以随时点'跳过当前'立即放行。"""
+    is_human = True
+    # 各阶段她的考虑时限(秒): 发言/遗言宽一点, 投票/技能短一点(对齐会玩)
+    LIMIT = {"speech": 120, "lastwords": 120, "text": 120, "wolf": 60,
+             "vote": 30, "seer": 30, "witch": 30, "hunter": 30}
 
     def __init__(self, seat, hub):
         self.seat = seat
         self.hub = hub
 
+    def _default(self, phase, options):
+        """到点/跳过时的安全托管动作: 不崩局、不违规, 让对局继续。"""
+        if phase in ("speech", "lastwords", "text"):
+            return "（考虑时间到, 本回合发言从简, 继续听大家盘逻辑）"
+        if phase == "wolf":
+            return json.dumps(
+                {"say": "", "vote_kill": options[0] if options else None},
+                ensure_ascii=False)
+        if phase == "seer":
+            return json.dumps(
+                {"target": options[0] if options else None}, ensure_ascii=False)
+        if phase == "witch":
+            return json.dumps(
+                {"use_heal": False, "poison_target": None}, ensure_ascii=False)
+        if phase == "hunter":
+            return json.dumps({"shoot": None}, ensure_ascii=False)
+        return json.dumps({"vote_target": None}, ensure_ascii=False)  # 投票默认弃票
+
     def act(self, prompt):
         phase = parse_phase(prompt)
         if phase == "noop":
             return "知道了"
+        options = parse_seats(prompt)
+        limit = self.LIMIT.get(phase, 40)
+        deadline = time.time() + limit
         with self.hub.lock:
+            self.hub.answer = None
+            self.hub.skip = False
             self.hub.pending = {
-                "seat": self.seat, "phase": phase,
-                "options": parse_seats(prompt), "prompt": prompt}
+                "seat": self.seat, "phase": phase, "options": options,
+                "prompt": prompt, "limit": limit, "deadline": deadline}
         self.hub.ev.clear()
-        self.hub.ev.wait()
-        return self.hub.answer or ""
+        # 她提交 / 她手动跳过 / 倒计时到点, 三者任一即收口
+        while time.time() < deadline:
+            remain = deadline - time.time()
+            if self.hub.ev.wait(timeout=min(1.0, max(0.05, remain))):
+                break
+        with self.hub.lock:
+            ans = self.hub.answer
+            self.hub.pending = None
+            self.hub.answer = None
+        if ans is not None and ans != "":
+            return ans
+        return self._default(phase, options)
 
 
 class WatchGame(W.Game):
@@ -129,6 +168,8 @@ class Hub:
         self.game = None
         self.winner = None
         self.phase = "准备"
+        self.progress = None          # 当前正在等哪个 AI 座{seat,phase,since}
+        self.skip = False             # 她手动跳过当前等待
         self.human_seat = next((i["seat"] for i in roster
                                 if i.get("kind") == "human"), None)
         self.names = {}
@@ -167,6 +208,28 @@ class Hub:
             return ROLE_CN.get(self.game.role_of[self.human_seat], "")
         return ""
 
+    def progress_payload(self):
+        """当前正在等哪颗 AI 脑、在干什么、已等几秒(让她看见'在动', 不是死机)。"""
+        with self.lock:
+            p = dict(self.progress) if self.progress else None
+        if not p or self.game is None:
+            return None
+        # 正在等她自己时不显示"AI 进行中"
+        if p.get("seat") == self.human_seat:
+            return None
+        p["name"] = self.names.get(p["seat"], f'{p["seat"]}号')
+        p["elapsed"] = max(0, int(time.time() - p.get("since", time.time())))
+        return p
+
+    def skip_current(self):
+        """手动解套: AI 座让裁判硬超时立即托管; 她自己的座放行去走默认动作。"""
+        if self.game is not None:
+            self.game.force_advance = True
+        with self.lock:
+            if self.answer is None:
+                self.answer = ""
+            self.ev.set()
+
 
 def play(hub):
     """后台线程: 实例化后端并跑完一整局。"""
@@ -180,12 +243,22 @@ def play(hub):
                 backends[hub.human_seat] = WebBackend(hub.human_seat, hub)
         with hub.lock:
             hub.phase = "发牌"
+
+        def _prog(seat, phase):
+            with hub.lock:
+                hub.progress = {"seat": seat, "phase": phase,
+                                "since": time.time()}
+
+        # action_timeout: 单颗真脑 45s 不回就托管, 整局绝不被任何一颗脑钉死
         game = WatchGame(hub, backends, seed=hub.seed, win=hub.win,
-                         verbose=False, wolf_chat_rounds=1)
+                         verbose=False, wolf_chat_rounds=1,
+                         action_timeout=45, on_progress=_prog)
         hub.game = game
         game.run()
         hub.winner = game.winner
         hub.phase = "结束"
+        with hub.lock:
+            hub.progress = None
         with hub.lock:
             hub.events.append({"day": game.day, "kind": "结局",
                                "text": f"游戏结束, 胜利方: {game.winner}。"
@@ -261,8 +334,10 @@ h1{font-size:17px;text-align:center;margin:6px 0 2px;font-weight:600;
 <div class=bar>
  <button onclick="start('demo')">开一局·假脑演示</button>
  <button class=ghost onclick="start('real')">开一局·真脑(我坐我的座)</button>
+ <button class=ghost onclick="skipNow()">卡住?跳过当前</button>
 </div>
 <div class=phase id=phase></div>
+<div class=phase id=waiting style="font-size:12px;color:#9be7ff;font-weight:400"></div>
 <div class=grid id=grid></div>
 <div class=toggle id=myrole></div>
 <div class=night id=night></div>
@@ -281,6 +356,20 @@ function start(mode){
   if(d.token){TOKEN=d.token;localStorage.setItem('ww_token',TOKEN);}
   if(!timer)timer=setInterval(poll,1500);poll();});
 }
+function skipNow(){
+ if(!confirm('跳过当前等待? 轮到的脑/你自己会按安全默认动作继续, 牌局不会停。'))return;
+ api('/skip?token='+encodeURIComponent(TOKEN),{method:'POST'});
+}
+let cdTimer=null;
+function startCountdown(deadline){
+ if(cdTimer)clearInterval(cdTimer);
+ const el=document.getElementById('cd');
+ function tick(){if(!el){if(cdTimer)clearInterval(cdTimer);return;}
+  const left=Math.max(0,Math.ceil(deadline/1000-Date.now()/1000));
+  el.textContent=' · 剩余 '+left+'s, 到点自动托管';
+  if(left<=0&&cdTimer)clearInterval(cdTimer);}
+ tick();cdTimer=setInterval(tick,1000);
+}
 function kindClass(k){return 'k-'+k;}
 function poll(){
  api('/poll?after='+after+'&nafter='+nAfter+'&token='+encodeURIComponent(TOKEN))
@@ -290,6 +379,10 @@ function poll(){
   renderSeats(d.seats,d.events);
   d.events.forEach(e=>{after++;addEv('feed',e);});
   d.night.forEach(e=>{nAfter++;addEv('night',e);});
+  const w=document.getElementById('waiting');
+  if(d.progress&&!d.pending){w.textContent='⏳ 正在等 '+d.progress.seat+'号 '+esc(d.progress.name)+
+   ' · '+d.progress.phase+' · 已等'+d.progress.elapsed+'s（到点自动托管, 不会卡住; 也可点上方跳过）';}
+  else{w.textContent='';}
   cur=d.pending;renderAct(d.pending);
   if(d.phase==='结束'||d.phase==='异常'){/*保留操作区隐藏*/if(!d.pending)document.getElementById('act').innerHTML='';}
  });
@@ -321,9 +414,10 @@ function seatBtns(cb){return cur.options.map(n=>
 function pick(n,el){sel=n;document.querySelectorAll('.opts button').forEach(b=>b.classList.remove('on'));
  if(el)el.classList.add('on');}
 function renderAct(p){
- const box=document.getElementById('act');if(!p){box.innerHTML='';return;}
+ const box=document.getElementById('act');
+ if(!p){box.innerHTML='';if(cdTimer){clearInterval(cdTimer);cdTimer=null;}return;}
  sel=null;heal=null;
- let h='<div class=hint>轮到你('+p.seat+'号)操作 · '+p.phase+'</div>';
+ let h='<div class=hint>轮到你('+p.seat+'号)操作 · '+p.phase+'<span id=cd></span></div>';
  if(p.phase==='speech'||p.phase==='lastwords'||p.phase==='text'){
   h+='<textarea id=ta placeholder="'+(p.phase==='lastwords'?'留一句公开遗言':'你的白天发言(≥100字, 别贴脸)')+'"></textarea>';
   h+='<button class=go onclick=submitText()>提交</button>';
@@ -344,11 +438,13 @@ function renderAct(p){
   if(p.phase==='vote')h+='<button class=go style=background:#5b44a8 onclick=submitRaw(null)>弃票</button>';
  }
  box.innerHTML=h;
+ if(p.deadline)startCountdown(p.deadline*1000);
 }
 function setHeal(v,el){heal=v;document.querySelectorAll('.opts button').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
 function post(answer){api('/act?token='+encodeURIComponent(TOKEN),
  {method:'POST',headers:{'Content-Type':'application/json'},
- body:JSON.stringify({text:answer})}).then(()=>{document.getElementById('act').innerHTML='';});}
+ body:JSON.stringify({text:answer})}).then(()=>{document.getElementById('act').innerHTML='';
+ if(cdTimer){clearInterval(cdTimer);cdTimer=null;}});}
 function submitText(){post(document.getElementById('ta').value);}
 function submitWolf(){const say=document.getElementById('ta').value;
  post(JSON.stringify({say:say,vote_kill:sel}));}
@@ -395,6 +491,7 @@ class Handler(BaseHTTPRequestHandler):
                     "night": hub.night[nafter:],
                     "seats": hub.seats_payload(),
                     "pending": hub.pending, "phase": hub.phase,
+                    "progress": hub.progress_payload(),
                     "winner": hub.winner, "day": (hub.game.day
                                                   if hub.game else 0),
                     "my_role": hub.my_role()}
@@ -429,6 +526,11 @@ class Handler(BaseHTTPRequestHandler):
                 hub.answer = str(data.get("text", ""))
                 hub.pending = None
                 hub.ev.set()
+            return self._send(200, json.dumps({"ok": True}))
+        if u.path == "/skip":
+            if not self._ok_token(qs):
+                return self._send(401, json.dumps({"err": "口令不对"}))
+            self.hub.skip_current()
             return self._send(200, json.dumps({"ok": True}))
         self._send(404, json.dumps({"err": "no such path"}))
 

@@ -5,11 +5,14 @@ werewolf_referee.py —— 辰心知阮 · 9 人狼人杀多 AI 裁判(状态机
 
 板子: 3 狼人 / 3 平民 / 预言家 / 女巫 / 猎人(标准 9 人屠边局, 可切屠城)。
 设计死线(对应阿阮&阿境简案第 3 条, 也是多 AI 狼人杀最容易作弊处):
-  全局身份字典 role_of 只活在裁判 Game 内部; 【公共视角函数 public_brief 的入参里
-  根本没有身份字典】——它只接收存活表与公开日志, 因此从接口层就无法把别人的身份
-  拼进发给任何玩家的白天上下文。每个玩家只能拿到: ①自己的身份(system 里给本人)
-  ②公开局势与公开发言历史 ③夜间仅属于自己身份的那一条私密简报。狼人互知队友也
-  只走夜间私密简报, 绝不进白天公共包。
+  全局身份字典 role_of 只活在裁判 Game 内部。public_brief(viewer) 只允许按下标
+  role_of[viewer] 取【viewer 本人】的牌(本人身份/狼队友/自己的验人记录/药剂余量,
+  无状态外脑每次调用都是新的, 不带上这些它白天就不记得自己是谁、验过谁); 它绝不
+  遍历、也拿不到任何【他人】的隐藏身份(自测用源码扫描锁死: role_of 下标只能是
+  viewer)。每个玩家白天拿到: ①仅属于自己的私密块 ②公开局势与公开发言历史;
+  夜间再按身份给仅属于自己的一条私密简报。狼队友只发给狼本人, 绝不进他人公共包。
+  运行模式对齐会玩: 每个动作有硬超时(action_timeout), 到点托管推进、故障不判出局,
+  绝不让任何一颗脑或一个动作把整局钉死。
 
 阶段(状态机): 发牌 -> 夜(狼刀/预言家验/女巫救毒, 单线 JSON 隔离) -> 结算夜死
   -> 白天(死讯/遗言/猎人开枪 -> 顺序发言[>=100字, 禁贴脸] -> 公投/平票 PK)
@@ -31,8 +34,10 @@ import os
 import random
 import re
 import sys
+import time
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -104,6 +109,12 @@ def majority(votes, tie_pref="low"):
 class Backend:
     """所有玩家后端统一接口: act(prompt) -> 纯文本。"""
 
+    # 最近一次动作是否真拿到有效回应: 区别'网络/超时故障'与'内容不达标',
+    # 故障要托管推进、不能把连不上的脑当成违规判出局。Scripted/Human 恒真。
+    last_ok = True
+    is_human = False        # 网页人类座(走倒计时)
+    blocking_human = False  # 命令行真人座(阻塞等输入, 不计时)
+
     def act(self, prompt):  # pragma: no cover - 由子类实现
         raise NotImplementedError
 
@@ -121,6 +132,7 @@ class ScriptedBackend(Backend):
 
 class HumanBackend(Backend):
     """人类玩家(阿阮): 把裁判提示打到屏幕, 从 stdin 读她的动作/发言。"""
+    blocking_human = True
 
     def act(self, prompt):
         print("\n————— 轮到你操作(人类玩家)—————")
@@ -146,6 +158,8 @@ class ApiBackend(Backend):
         self.persona = persona
         # 直连各厂商公网 API, 绕开环境里可能拦截的代理(同会审台/信筒口径)
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self.last_ok = True       # 最近一次调用是否真拿到有效回复
+        self.last_err = ""        # 最近一次故障原因(供裁判托管/前端展示)
 
     def _key(self):
         v = os.environ.get(self.env_key, "").strip()
@@ -155,8 +169,11 @@ class ApiBackend(Backend):
         return p.read_text(encoding="utf-8").strip() if p.exists() else ""
 
     def act(self, prompt):
+        self.last_err = ""
         key = self._key()
         if not key:
+            self.last_ok = False
+            self.last_err = "缺钥匙"
             return "{}"
         body = json.dumps({
             "model": self.model,
@@ -168,17 +185,23 @@ class ApiBackend(Backend):
             ],
             "temperature": self.temp,
         }, ensure_ascii=False).encode("utf-8")
-        for attempt in range(3):
+        # 单次 40s、最多 2 次: 真脑慢/连不上时最坏 ~80s 就放手, 交给动作级硬超时托管,
+        # 绝不让一颗脑把整局钉死在原地(会玩模式: 到点就推进)。
+        for attempt in range(2):
             try:
                 req = urllib.request.Request(self.base_url + "/chat/completions",
                                              data=body, method="POST")
                 req.add_header("Authorization", f"Bearer {key}")
                 req.add_header("Content-Type", "application/json")
-                with self.opener.open(req, timeout=90) as resp:
+                with self.opener.open(req, timeout=40) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
-                return payload["choices"][0]["message"]["content"].strip()
-            except (urllib.error.URLError, KeyError, TimeoutError):
-                if attempt == 2:
+                content = payload["choices"][0]["message"]["content"].strip()
+                self.last_ok = True
+                return content
+            except Exception as e:  # noqa: BLE001 单颗脑任何故障都不许炸掉整局
+                self.last_err = f"{type(e).__name__}: {str(e)[:80]}"
+                if attempt == 1:
+                    self.last_ok = False
                     return "{}"
 
 
@@ -188,9 +211,12 @@ class ApiBackend(Backend):
 class Game:
     def __init__(self, backends, seed=790511, win="edge",
                  first_night_self_save=True, strict_speech=True, verbose=True,
-                 wolf_chat_rounds=1):
+                 wolf_chat_rounds=1, action_timeout=45, on_progress=None):
         """backends: {seat: Backend}。win: edge=屠边 / city=屠城。
-        wolf_chat_rounds: 狼人夜间讨论轮数(每只狼每轮可打字发言、互相可见后出刀)。"""
+        wolf_chat_rounds: 狼人夜间讨论轮数(每只狼每轮可打字发言、互相可见后出刀)。
+        action_timeout: 单个动作(一次外脑调用)硬超时秒数, 到点托管推进、绝不死等,
+                         对齐会玩'每阶段倒计时到点自动走'的运行模式。
+        on_progress: 回调 fn(seat, phase), 每次等待某座前置位, 供前端显示'轮到谁'。"""
         assert sorted(backends) == SEATS, "必须是 1..9 九个座位"
         self.rng = random.Random(seed)
         self.backends = backends
@@ -199,6 +225,13 @@ class Game:
         self.strict_speech = strict_speech
         self.verbose = verbose
         self.wolf_chat_rounds = max(1, wolf_chat_rounds)
+        self.action_timeout = action_timeout
+        self.on_progress = on_progress
+        # 每个动作丢独立线程跑, 主流程按硬超时收口; 9 座各一线程够用
+        self._exec = ThreadPoolExecutor(max_workers=9, thread_name_prefix="ww-act")
+        self.progress = {"seat": None, "phase": "", "since": 0.0}
+        self.force_advance = False     # 外部手动"跳过当前等待"时置 True
+        self.faults = []               # (seat, phase, reason) 故障/超时托管留痕
 
         roles = BOARD_9[:]
         self.rng.shuffle(roles)
@@ -247,21 +280,79 @@ class Game:
         lines = [
             f"板子: 9 人局(3 狼、3 民、预言家/女巫/猎人)。现在是第 {self.day} 天。",
             f"你是 {viewer} 号。当前存活: {alive_str}。",
-            "—— 截至目前全部公开信息(死讯/遗言/发言/投票, 按时间) ——",
         ]
+        # —— 只属于 viewer 本人的私密: 自己的牌/狼队友/验人记录/药剂余量 ——
+        # 无状态外脑每次调用都是新的, 不把它自己的这些信息带上, 它白天就不记得
+        # 自己是谁、验过谁; 这是'本人本该知道的', 不含任何他人隐藏身份, 不破隔离。
+        my_role = self.role_of[viewer]
+        priv = [f"你的身份: {my_role}。"]
+        if my_role == WOLF:
+            mates = [w for w in self.wolves if w != viewer and self.alive[w]]
+            priv.append("你是狼人, 存活狼队友: "
+                        + ("、".join(f"{w}号" for w in mates) if mates else "目前只剩你")
+                        + "(狼夜间互知, 白天别暴露)。")
+        if my_role == SEER and self.seen.get(viewer):
+            rec = "、".join(f"{t}号={r}" for t, r in sorted(self.seen[viewer].items()))
+            priv.append(f"你此前的验人记录(仅你自己知道): {rec}。")
+        if my_role == WITCH:
+            priv.append(f"你的药剂: 解药{'剩1瓶' if self.heal_left else '已用'}, "
+                        f"毒药{'剩1瓶' if self.poison_left else '已用'}(一晚只能用一瓶)。")
+        lines.append("【仅你可见·你的私密】" + " ".join(priv))
+        lines.append("—— 截至目前全部公开信息(死讯/遗言/发言/投票, 按时间) ——")
         for e in self.public_log:
             lines.append(e["text"])
         lines.append("注意: 你只知道自己的身份; 上面没有、也不允许你假设任何人的隐藏身份。")
         return "\n".join(lines)
 
-    def _ask(self, seat, prompt):
-        """向某座位后端取一次原始文本(统一入口, 便于计数/兜底)。"""
-        return self.backends[seat].act(prompt)
+    def _set_progress(self, seat, phase):
+        self.progress = {"seat": seat, "phase": phase, "since": time.time()}
+        if self.on_progress:
+            try:
+                self.on_progress(seat, phase)
+            except Exception:  # noqa: BLE001 进度回调绝不能反过来卡住对局
+                pass
 
-    def _ask_json(self, seat, prompt, default):
-        """取 JSON 动作; 解析失败重试一次, 再失败用安全默认(不崩局)。"""
+    def _ask(self, seat, prompt, phase="动作", timeout=None, hard_default=None):
+        """统一取文本(会玩式不卡死的关键)。
+        置进度 -> 丢独立线程跑后端 -> 主流程按硬超时收口:
+        后端异常 / 超过 deadline / 外部 force_advance, 都返回 hard_default 继续,
+        绝不允许任何一颗脑或一个动作把整局钉死在原地。"""
+        self._set_progress(seat, phase)
+        backend = self.backends[seat]
+        if getattr(backend, "blocking_human", False):
+            return backend.act(prompt)          # 命令行真人: 阻塞交互, 不计时
+        if getattr(backend, "is_human", False):
+            # 网页里的阿阮: 发言/遗言宽限 130s, 其余动作 45s(她自己面板也有倒计时)
+            deadline = 130 if ("发言" in phase or "遗言" in phase) else 45
+        else:
+            deadline = self.action_timeout if timeout is None else timeout
+        if hard_default is None:
+            hard_default = "{}"
+        fut = self._exec.submit(backend.act, prompt)
+        start = time.time()
+        while True:
+            if fut.done():
+                try:
+                    return fut.result()
+                except Exception as e:  # noqa: BLE001 act 自身抛错也不炸局
+                    backend.last_ok = False
+                    self.faults.append((seat, phase, f"后端异常:{type(e).__name__}"))
+                    return hard_default
+            elapsed = time.time() - start
+            if self.force_advance:
+                self.force_advance = False
+                self.faults.append((seat, phase, "手动跳过,托管"))
+                return hard_default
+            if elapsed >= deadline:
+                self.faults.append((seat, phase, f"硬超时{deadline:.0f}s,托管"))
+                return hard_default
+            time.sleep(0.25)
+
+    def _ask_json(self, seat, prompt, default, phase="动作"):
+        """取 JSON 动作; 解析失败重试一次, 再失败用安全默认(不崩局)。
+        phase 透传给 _ask 做进度展示与硬超时托管。"""
         for _ in range(2):
-            raw = self._ask(seat, prompt)
+            raw = self._ask(seat, prompt, phase=phase)
             try:
                 return extract_json(raw)
             except ValueError:
@@ -316,7 +407,8 @@ class Game:
                         '返回 JSON: {"say":"想对队友说的话(没有就空字符串)",'
                         '"vote_kill":座位号或null}。' + tail)
                     d = self._ask_json(w, ask, {"say": "",
-                                                "vote_kill": targets[0] if last else None})
+                                                "vote_kill": targets[0] if last else None},
+                                       phase=f"{w}号狼人夜商量")
                     say_txt = str(d.get("say", "")).strip()[:200]
                     if say_txt:
                         wolf_chat.append({"seat": w, "say": say_txt})
@@ -331,7 +423,8 @@ class Game:
                     continue
                 d = self._ask_json(
                     w, f"【仅你可见·狼人夜】狼队统一出刀, 可刀: {tgt}。\n"
-                       '返回 {"vote_kill": 座位号}。', {"vote_kill": targets[0]})
+                       '返回 {"vote_kill": 座位号}。', {"vote_kill": targets[0]},
+                    phase=f"{w}号统一出刀")
                 if d.get("vote_kill") in targets:
                     wolf_votes.append(d["vote_kill"])
             killed, _, _ = majority(wolf_votes)
@@ -350,15 +443,17 @@ class Game:
                 ask = (f"【仅你可见·预言家夜】可选验人: "
                        f"{'、'.join(f'{x}号' for x in cand)}。\n"
                        '返回 {"target": 座位号}。')
-                data = self._ask_json(s, ask, {"target": cand[0]})
+                data = self._ask_json(s, ask, {"target": cand[0]},
+                                      phase=f"{s}号预言家验人")
                 t = data.get("target", cand[0])
                 if t not in cand:
                     t = cand[0]
                 is_wolf = self.role_of[t] == WOLF
                 self.seen[s][t] = WOLF if is_wolf else "好人"
-                result = self._ask(
+                self._ask(
                     s, f"【仅你可见·预言家结果】你查验 {t} 号, 结果是: "
-                       f"{'狼人' if is_wolf else '好人(非狼)'}。知道即可, 无需返回。")
+                       f"{'狼人' if is_wolf else '好人(非狼)'}。记住它, 白天可决定是否报验。",
+                    phase=f"{s}号接收验人结果", hard_default="")
                 self.whisper(s, "预言家验人",
                              f"你查验 {t} 号 -> {'狼人' if is_wolf else '好人(非狼)'}")
 
@@ -378,7 +473,8 @@ class Game:
                 f"{self_hint}一晚只能用一瓶, 解药和毒药二选一。"
                 '\n返回 {"use_heal": true/false, "poison_target": 座位号或null}。')
             d = self._ask_json(w_seat, ask,
-                               {"use_heal": False, "poison_target": None})
+                               {"use_heal": False, "poison_target": None},
+                               phase=f"{w_seat}号女巫用药")
             r = self._resolve_night_deaths(
                 killed, bool(d.get("use_heal")), d.get("poison_target"), w_seat)
             deaths = r["deaths"]
@@ -409,7 +505,8 @@ class Game:
         ask = (f"【仅你可见·猎人】你因{cause_public}出局, 可开枪带走一名存活者: "
                f"{'、'.join(f'{s}号' for s in targets)}。\n"
                '返回 {"shoot": 座位号或null}。')
-        d = self._ask_json(seat, ask, {"shoot": targets[-1]})
+        d = self._ask_json(seat, ask, {"shoot": targets[-1]},
+                           phase=f"{seat}号猎人开枪")
         t = d.get("shoot")
         if t in targets:
             self.alive[t] = False
@@ -436,7 +533,8 @@ class Game:
         self.say("出局", f"{seat} 号出局({reason})。")
         if self._has_last_words(seat, reason):
             last = self._ask(
-                seat, f"你是 {seat} 号, 刚因'{reason}'出局, 留一句公开遗言(不超过60字):")
+                seat, f"你是 {seat} 号, 刚因'{reason}'出局, 留一句公开遗言(不超过60字):",
+                phase=f"{seat}号留遗言", hard_default="")
             if last:
                 self.say("遗言", f"{seat} 号: {last[:120]}")
         else:
@@ -473,14 +571,25 @@ class Game:
         ask = (brief + "\n【白天发言】按座位轮到你公开发言, 必须包含你自己的逻辑推导, "
                        f"去空白后不少于 {MIN_SPEECH} 字; 严禁贴脸(发誓/赌咒/现实担保)。"
                        "直接输出发言正文, 不要 JSON。")
-        text = self._ask(s, ask)
+        text = self._ask(s, ask, phase=f"{s}号白天发言", hard_default="")
+        # 网络/超时故障 ≠ 玩家违规: 连不上就托管一句、让他活着继续, 不判出局
+        if (not getattr(self.backends[s], "last_ok", True)
+                or not text.strip() or text.strip() == "{}"):
+            self.say("发言", f"{s} 号: (连接不稳, 本回合发言从简, 继续听大家盘逻辑)")
+            return "(连接托管)"
         bad = detect_tieli(text)
         if bad:
             self.say("违规", f"{s} 号发言贴脸(命中'{bad}'), 按规则直接判出局。")
             self._kill(s, "贴脸违规出局", can_hunter=False)
             return None
         if speech_len(text) < MIN_SPEECH:
-            text2 = self._ask(s, ask + f"\n(你刚才只有{speech_len(text)}字, 请补到{MIN_SPEECH}字以上)")
+            text2 = self._ask(s, ask + f"\n(你刚才只有{speech_len(text)}字, 请补到{MIN_SPEECH}字以上)",
+                              phase=f"{s}号补发言", hard_default="")
+            # 补问时连不上: 用首轮(虽短但真实)发言, 不因网络故障判出局
+            if (not getattr(self.backends[s], "last_ok", True)
+                    or not text2.strip() or text2.strip() == "{}"):
+                self.say("发言", f"{s} 号: {text}")
+                return text
             if detect_tieli(text2):
                 self.say("违规", f"{s} 号补发言仍贴脸, 判出局。")
                 self._kill(s, "贴脸违规出局", can_hunter=False)
@@ -506,7 +615,8 @@ class Game:
             ask = (brief + f"\n【第{round_n}轮公投】投票目标(存活): "
                            f"{'、'.join(f'{c}号' for c in opts)}; 可弃票。\n"
                            '返回 {"vote_target": 座位号或null}。')
-            d = self._ask_json(v, ask, {"vote_target": opts[-1] if opts else None})
+            d = self._ask_json(v, ask, {"vote_target": opts[-1] if opts else None},
+                               phase=f"{v}号公投")
             t = d.get("vote_target")
             votes[v] = t if t in opts else None
         valid = [t for t in votes.values() if t is not None]
@@ -557,6 +667,8 @@ class Game:
             print("胜利方:", self.winner or "(达到天数上限未分胜负)")
             print("身份总表:", {s: self.role_of[s] for s in SEATS})
             print("出局顺序:", self.out_order)
+        # 不等待仍挂在网络上的动作线程(硬超时已托管), 避免它们拖住整局收尾
+        self._exec.shutdown(wait=False)
         return self.winner
 
 
@@ -653,8 +765,11 @@ def selftest():
                       f"{other}号是{rname}" not in brief and
                       f"{other}号为{rname}" not in brief)
     import inspect
-    check("public_brief 源码不引用身份字典 role_of",
-          "role_of" not in inspect.getsource(Game.public_brief))
+    # 允许取 viewer 本人身份(无状态脑必须知道自己的牌/验人/药剂), 但源码里
+    # role_of 的下标只能是 viewer, 出现任何其他下标/遍历即判定天眼风险, 测试失败
+    pb_idx = re.findall(r"role_of\[([^\]]+)\]", inspect.getsource(Game.public_brief))
+    check("public_brief 只取本人 role_of[viewer], 绝不遍历/取他人身份",
+          bool(pb_idx) and all(x.strip() == "viewer" for x in pb_idx))
 
     print("[3] 解析与发言规则纯函数")
     check("从围栏文本抽出JSON",
