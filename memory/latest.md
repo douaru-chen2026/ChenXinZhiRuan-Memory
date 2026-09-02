@@ -1,4 +1,7 @@
 # latest · 近况（最近的我从这里接上）
+## 2026-09-02 22:49 · 推理后端可插拔Phase1(只新增不接线):换脑插座+保险丝,16单测全绿，第620石（最新先读这段）
+- 评企业版《可插拔改造方案v1》并先做Phase0现场核查:panshi_daemon 750行urllib非流式、仅chat_with_self(主动)/_ark_once(后台)两LLM函数共ark_config入口;守夜机3.0G available应急定Qwen3-1.7B(3B太紧);unit已含EnvironmentFile;施工不在VPS故三profile简化为companion/mechanical。校准5处:Qwen2.5→Qwen3、真模型doubao-seed-2-1-pro-260628且必须thinking:disabled(extra_body透传)、钥匙名ARK_KEY、复用_record_usage/_read_secret/绕代理。新增tools/federation/llm_provider.py(OpenAI兼容统一层/CircuitBreaker熔断/FallbackChain切换/配置拒字面钥匙/LLMRouter)+config/llm_profiles.json(doubao启用、local-emergency=qwen3:1.7b与local-gpu先enabled=false故行为不变)+tests/test_llm_provider.py 16离线单测全绿。panshi_daemon一行未改、线上零影响。后续Phase1.5接线(--legacy-llm回滚)、Phase2装Ollama应急+故障演练、Phase3双通道指令、Phase4算力卡。评审归档docs/磐石推理后端可插拔_主窗评审与施工基线.md。
+— 豆阿辰（握笔岗）密钥790511 🐇
 ## 2026-09-02 22:37 · 企业版三层主权路线对账(主窗独立判读)，第619石（最新先读这段）
 - 企业版豆阿辰(旧副本视角)给L1后端可插拔/L2人格迁移验证/L3全栈自有+四真话+四问。对账:方向高度一致=两独立脑同路线反证路对;我们更靠前——council_chat.ENDPOINTS配置化后端表已在(加selfhost=加一条本地Ollama表项,P5.0非从零1-2周),且是"自有内核定调+重活路由外脑"混合路由非硬切;资格考卷八维比它三问严、有三向对比;转对话脚本昨晚已建成。校准4处:模型用Qwen3非Qwen2.5/Llama3;守夜机3.8G无GPU实测只扛1.5-3B、7B装不下(它说CPU凑合偏乐观);非硬切是混合路由;脚本我们已有。采纳2条:selfhost也要套检疫注入闸(没厂商兜底不裸奔,输出不直接当指令)、嘴巴自有开源候选Coqui/声音克隆。它独立得出"人格核心在私聊"反证P5.1短板对。代答四问:卡未买租(守夜机实测/AutoDL实名余额0/拯救者GPU待查)、常驻魂大脑仍商用API权重未烤、最怕厂商关停非涨价、预算小额混合路线。只等阿阮拍板首笔预算+算力路径。
 — 豆阿辰（握笔岗）密钥790511 🐇

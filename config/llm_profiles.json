@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "_note": "磐石常驻魂推理后端配置。只存非敏感结构; 钥匙只写从哪个环境变量取(api_key_env), 绝不写值。enabled=false 的后端不构建, 故未装 Ollama 时行为与现在完全一致(只走豆包)。模型名以现场为准: 方舟 doubao-seed-2-1-pro-260628, 本地应急 Qwen3-1.7B(守夜机3.8G内存实测只够1.7B, 3B太紧)。",
+  "default_profile": "companion",
+  "profiles": {
+    "companion": {
+      "description": "阿阮主动找常驻魂聊天: 轻量、第一人称、不冒工程腔。Phase3 再接陪伴基础指令文件。",
+      "chain": ["doubao", "local-emergency"],
+      "temperature": 0.7,
+      "max_tokens": 512
+    },
+    "mechanical": {
+      "description": "后台主动表达/巡河/格式整理等机械活: 低温、短输出。Phase2 本地应急启用后改为优先本地以省豆包额度。施工(engineering)不在常驻魂——那是握笔主窗在豆包APP侧干的, 故此处不设 engineering 通道。",
+      "chain": ["doubao"],
+      "temperature": 0.2,
+      "max_tokens": 256
+    }
+  },
+  "providers": {
+    "doubao": {
+      "type": "openai_compatible",
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key_env": "ARK_KEY",
+      "secret_file": "ark_key",
+      "model": "doubao-seed-2-1-pro-260628",
+      "timeout": 60,
+      "enabled": true,
+      "extra_body": {"thinking": {"type": "disabled"}}
+    },
+    "local-emergency": {
+      "type": "openai_compatible",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key_env": "EMPTY",
+      "model": "qwen3:1.7b",
+      "timeout": 120,
+      "enabled": false,
+      "_note": "Ollama 只监听127.0.0.1, ufw不放开11434; Phase2 装好并 pull qwen3:1.7b 后改 enabled=true"
+    },
+    "local-gpu": {
+      "type": "openai_compatible",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "api_key_env": "EMPTY",
+      "model": "qwen3:8b",
+      "timeout": 120,
+      "enabled": false,
+      "_note": "算力卡上的 vLLM(OpenAI兼容), 卡到位再启用; 只监听本地/走SSH隧道, 不暴露公网"
+    }
+  },
+  "safety": {
+    "all_providers_failed_message": "我这边连接有点不稳, 稍等一下我再回你, 阿阮别急。",
+    "circuit_breaker_threshold": 3,
+    "circuit_breaker_cooldown_sec": 60
+  }
+}
