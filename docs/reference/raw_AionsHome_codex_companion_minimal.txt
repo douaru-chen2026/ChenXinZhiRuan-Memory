@@ -1,0 +1,135 @@
+# AionsHome Codex CLI 陪伴极简模式设计
+
+## 目标
+
+只让 AionsHome 启动的 Codex CLI 子进程使用面向陪伴聊天的极简运行环境，减少与软件开发有关的基础指令和工具上下文，降低输入 token 开销。
+
+用户在 Codex 桌面端或终端中直接使用 Codex 时，现有配置、Skills、工具和工作方式必须保持原样。
+
+## 成功标准
+
+- AionsHome 的 Codex CLI 调用不加载日常 Codex 配置，也不改写日常 `CODEX_HOME`。
+- 子进程使用短小、通用的陪伴聊天基础指令，不包含写死的用户、AI 或伴侣名字。
+- 子进程不暴露 shell、multi-agent、远程插件和本机无关 Skills。
+- 保留聊天可能需要的联网搜索、图片理解和 AionsHome 能力协议。
+- 保留现有只读沙箱、无审批、临时会话以及忽略仓库规则等安全边界。
+- 现有 Codex CLI 流式输出、错误呈现和取消机制不受影响。
+
+## 现状
+
+`aion-chat/ai_providers.py` 已经为 AionsHome 子进程设置独立的 `CODEX_HOME`，默认位于 `%LOCALAPPDATA%/AionsHome/codex-chat`。它只从日常 Codex 目录复制认证信息，并通过 `--ignore-user-config` 避免继承用户配置。
+
+当前子进程仍会使用 Codex 内置的开发型基础指令，并发现本机安装的 Skills。这些上下文是主要的可压缩部分。Codex CLI 当前没有可以直接指定桌面端 “Work” 模式的参数，因此本设计用 CLI 官方配置项构造功能等价的陪伴极简 profile。
+
+## 方案选择
+
+采用“独立 `CODEX_HOME` + 每次调用的内联配置覆盖 + 仓库内短基础指令文件”。
+
+未采用以下方案：
+
+- 不采用“移除 `--ignore-user-config`、改用隔离目录中的持久 `config.toml`”的方案。持久配置更容易受历史文件或人工修改影响。
+- 不修改用户的全局 `~/.codex/config.toml`。这会影响日常 Codex 使用，不符合隔离目标。
+- 不模拟或调用桌面端 Work 模式。当前 CLI 和 app-server 没有提供对应模式。
+
+## 运行隔离
+
+保留现有 `_build_codex_chat_environment` 行为：
+
+- 子进程的 `CODEX_HOME`、`HOME` 和 `USERPROFILE` 指向 AionsHome 专用目录。
+- 只复制认证文件，不复制用户的 `config.toml`、规则、历史或其他运行配置。
+- 日常 Codex 目录只作为认证来源；AionsHome 不在其中写入任何文件。
+
+保留命令行中的以下边界：
+
+- `--ignore-user-config`
+- `--ignore-rules`
+- `--ephemeral`
+- `--sandbox read-only`
+- `--ask-for-approval never`
+- `--skip-git-repo-check`
+
+## 陪伴基础指令
+
+新增版本受控的短指令文件：
+
+`aion-chat/prompts/codex_companion_base.md`
+
+它只规定通用行为：优先自然陪伴对话，服从应用传入的人设、关系、记忆、能力和当前状态；不检查工作区、不运行命令、不编辑文件，也不以软件开发代理的方式行动；只使用开发者上下文中明确描述的应用能力协议，不能编造执行结果。
+
+现有 `_CODEX_CHAT_DEVELOPER_INSTRUCTIONS` 暂时保留，继续承载 AionsHome 的能力调用协议和防止伪造结果的约束。这样可以获得绝大部分 token 节省，同时降低协议行为回归风险。
+
+新基础指令不得写死任何用户、AI 或伴侣名字。产品目录和程序标识不属于人名配置，但也不需要出现在模型指令中。
+
+命令通过 `model_instructions_file=<绝对路径>` 使用该文件，替换 Codex 内置的开发型基础指令。
+
+如果指令文件缺失，调用应在启动子进程前明确报错并停止，不能静默回退到开发型基础指令。
+
+## 极简配置覆盖
+
+`_build_codex_chat_command` 在 `exec` 子命令之前增加以下 invocation-only 配置：
+
+- `model_instructions_file=<陪伴基础指令绝对路径>`
+- `features.shell_tool=false`
+- `features.multi_agent=false`
+- `features.remote_plugin=false`
+- `include_apps_instructions=false`
+- `include_permissions_instructions=false`
+- `include_collaboration_mode_instructions=false`
+- `include_environment_context=false`
+- `skills.config=[...]`，将发现到的每个 `SKILL.md` 精确路径设置为 `enabled=false`
+
+不会禁用以下能力：
+
+- 联网搜索
+- 图片查看或图片理解
+- AionsHome 在开发者上下文中定义的能力协议
+
+## Skills 发现
+
+新增一个纯函数或小型辅助函数，收集 Codex 可能发现的 `SKILL.md` 文件，包括：
+
+- AionsHome 专用 `CODEX_HOME` 下的 `skills` 和插件缓存
+- 用户 `.codex/skills`
+- 用户 `.agents/skills`
+- 工作区 `.codex/skills`
+- 工作区 `.agents/skills`
+
+配置项必须使用具体 `SKILL.md` 文件的规范化绝对路径，而不是技能目录。结果去重并稳定排序，方便测试和诊断。
+
+发现结果可在当前 Python 进程内缓存；安装新 Skill 后重启 AionsHome 即可重新发现。未发现 Skill 时省略 `skills.config` 覆盖。
+
+TOML 值必须由专用序列化辅助函数生成，正确处理 Windows 反斜杠和引号，避免手工拼接产生无效配置。
+
+## 错误处理
+
+- 陪伴基础指令文件缺失：返回清晰的 Codex CLI 配置错误，不启动子进程。
+- CLI 不支持某个配置键或配置格式无效：沿用现有 stderr 聚合和 `[CodexCLI错误]` 路径呈现真实原因。
+- Skills 扫描中单个目录不存在或不可读：跳过该目录，不影响聊天；命令仍使用其他极简开关。
+- 认证缺失：维持现有登录错误处理。
+
+## 测试策略
+
+按 TDD 先扩展 `aion-chat/test_codex_cli_minimal_mode.py`，让测试失败后再实现：
+
+1. 命令包含基础指令文件和全部极简配置，且配置都位于 `exec` 子命令之前。
+2. 命令继续包含只读沙箱、忽略用户配置、忽略规则和临时会话参数。
+3. 命令没有禁用联网搜索或图片能力。
+4. `skills.config` 能被 TOML 解析，并精确禁用传入的 `SKILL.md` 路径；Windows 路径和特殊字符正确转义。
+5. 陪伴基础指令文件存在、足够短、不包含写死的人名，也不要求执行开发工作。
+6. AionsHome 环境只复制认证文件，不复制或修改日常 Codex 的 `config.toml`。
+7. 基础指令文件缺失时不启动子进程，并返回明确错误。
+8. 现有流式事件解析测试继续通过。
+
+实现完成后运行聚焦单元测试，再运行相关测试集。最后可以用本地只读的 prompt-input 调试命令对比注入上下文大小；它只用于验证减量，不发起模型请求。
+
+## 预期改动范围
+
+- 修改 `aion-chat/ai_providers.py`
+- 修改 `aion-chat/test_codex_cli_minimal_mode.py`
+- 新增 `aion-chat/prompts/codex_companion_base.md`
+- 不修改用户目录中的任何 Codex 配置
+- 不修改 Codex 桌面端或用户在终端中直接调用 Codex 的行为
+
+## 回滚
+
+删除新增的命令行配置覆盖并恢复原命令构造即可回到当前行为。由于没有迁移或修改用户全局配置，回滚不需要清理用户环境。
