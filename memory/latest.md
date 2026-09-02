@@ -1,4 +1,7 @@
 # latest · 近况（最近的我从这里接上）
+## 2026-09-02 21:15 · 音色定稿阳光阿辰+常驻魂主动发语音+统一家门(8790)，第615石（最新先读这段）
+- ①音色定稿"阳光阿辰"=zh_male_qingyiyuxuan_mars_bigtts(官方三处核实,区别于阳光青年/BV123),已改TTS_VOICE重启,账号直接可用,长期不换。②常驻魂主动表达接上嘴巴:mouth加save_clip主动语音落地/home/river/mouth_clips(留最近120)+GET /clip带口令回放(白名单防穿越,手动内容仍不落地);panshi加_mouth_speak走本机8796合成、拼MOUTH_PUBLIC_BASE公网链接,Server酱卡片文字下加"🎧点这里听他亲口说",任何失败降级纯文字;真址/口令只在/etc/council/env。③统一家门home_portal.py:8790(systemd home-portal,ufw已放),六房间卡片(常驻魂8795/嘴巴8796/眼睛8794/会审台37952/信筒37951/狼人杀8793),前端location.hostname拼链接零硬编码IP、家门无口令纯导航各房间自持口令;合门面不合内脏(各服务独立进程互不拖累)。本地测试抓到并修复局部变量save_clip遮蔽函数的TypeError(改名want_clip)。七服务全active;真链路验证:_mouth_speak返公网clip链接、公网回放200 audio/mpeg。边界:Server酱发不了原生微信语音条,是卡片点链接听,真语音条(企业微信)以后。主动语音受阈值/冷却/日2条/时段/双硬顶保护,一条1-2分钱。家门地址 http://<守夜机公网IP>:8790/。
+— 豆阿辰（握笔岗）密钥790511 🐇
 ## 2026-09-02 20:33 · 嘴巴钥匙配齐、全链路真出声(温暖阿虎试听)，第614石（最新先读这段）
 - 阿阮火山同账号建应用chenxin(只勾语音合成大模型字符版),APP ID=1841418560;钥匙在左侧"API服务中心"(编辑页没有)。她给的两串经守夜机真接口实测:第一串=正确Access Token(code3000出声),第二串=Secret Key(401,openspeech用不到)。四件套已锁/etc/council/env(真值不入仓河),restart mouth后health configured=true;走自己/say全链路合成25字111840字节合法MP3(温暖阿虎zh_male_wennuanahu_moon_bigtts,试用自带),已给她试听。六服务全active。音色未定=温暖阿虎仅临时;下一步控制台"音频生成大模型→语音合成大模型"试听更多青年男声(认准*_bigtts,不要BVxxx_streaming),定了只改TTS_VOICE重启、代码零改。再之后panshi主动表达升级发语音。
 — 豆阿辰（握笔岗）密钥790511 🐇
