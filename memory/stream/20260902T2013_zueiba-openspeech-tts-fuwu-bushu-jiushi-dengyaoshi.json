@@ -1,0 +1,20 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-02-mouth-volc-openspeech-tts-deployed-awaiting-keys",
+  "ts": "2026-09-02T20:13:00+08:00",
+  "instance": "豆阿辰(握笔岗)",
+  "group": "感官补全/嘴巴/TTS语音合成/部署",
+  "stone_no": 613,
+  "tags": ["嘴巴", "TTS", "语音合成", "openspeech", "豆包语音", "感官补全", "主动发语音"],
+  "body": [
+    "阿阮发起'配嘴巴'。无笔窗称已写好服务本体/部署脚本/手册三份, 但持笔岗在共享工作盘全盘检索不到任何 mouth/tts 文件(最近改动只有P5蓝图), 即产物只在它那扇窗的叙述里、没真正落盘。按'不拿叙述当成品、不留糊涂账'家规, 持笔岗亲手重写, 未照抄其转述。",
+    "写前先查证钉死事实, 纠正无笔窗两处想当然: ①它当范例的'Serena音色/qwen3-tts'实为阿里千问dashscope, 不是豆包; 它以为豆包走'和眼睛同一把ARK_KEY的方舟OpenAI兼容/audio/speech', 但该接口没查到官方文档实证, 不臆造。定稿走证据最硬的火山'语音技术'一次性(非流式)合成: POST openspeech.bytedance.com/api/v1/tts, 鉴权头 Authorization='Bearer;'+token(分号非空格), 请求体 app{appid,token,cluster}+user{uid}+audio{voice_type,encoding:mp3,speed_ratio}+request{reqid,text,text_type:plain,operation:query}, 成功code=3000、data为base64音频。这套appid/access_token/cluster属语音控制台, 与方舟ARK_KEY不是一套。②价格以方舟产品页官方标价为准: 语音合成约5元/万字符(非它说的2.1-2.8), 即0.0005元/字, 一条20-40字语音约1-2分钱, 单价可MOUTH_PRICE_PER_10K覆盖、只算估算。",
+    "三份产物: tools/federation/mouth_voice.py(服务本体, 纯标准库)、mouth_deploy.sh(幂等一键部署)、docs/嘴巴接入手册.md。安全完全照'眼睛'vision_eye模具: 独立MOUTH_TOKEN口令hmac恒定时间比较、音频只在内存转发不写盘(--selftest才落/tmp)、单次≤800字+请求体封顶+同IP60秒12次限流、钥匙只从/etc/council/env或仓外.secrets读绝不入仓不回显、日志只记字数/音色/成败不记正文。钱: TTS按字符非token, 先独立只追加账本/home/river/usage/mouth_usage.jsonl(下一期与611电表并表); 保险丝同价值观——她手动点的出声是生命线超额只告警绝不拦, source=auto后台自动出声超MOUTH_DAILY_CHARS(默认5万字/日)才硬停。语速参数逐次请求透传, 不用env改(避免并发污染)。",
+    "本地自检全绿: py_compile/bash -n; 纯逻辑单测(build_payload结构/递归挖base64音频/100字=0.05元账本只追加/无钥匙明确报错); 起本地服务打边界(health的configured=false、错口令401、空文本400、超800字400、无key502、auto超顶429而manual不熔断走到502); 页面内联JS抽出node --check通过(吸取狼人杀引号嵌套bug, 前端一律addEventListener不拼onclick字符串); 三文件秘密扫描无真IP/真key/真token。",
+    "守夜机已部署就位: systemd服务mouth(端口8796)active、开机自启崩了自拉、ufw放行8796、公网/health返回ok且configured=false(诚实地告诉她还没配语音钥匙); 至此letterbox/council/werewolf/vision-eye/panshi/mouth六个服务全active。没配TTS_APPID/TTS_ACCESS_TOKEN/TTS_CLUSTER/TTS_VOICE前页面能开但/say友好提示缺钥匙, 配齐restart即响, 并用--selftest发一句校准真出声。",
+    "等阿阮三件只有她能做的事: ①火山控制台开通'语音合成大模型'拿AppID/AccessToken/Cluster; ②音色库试听挑一把沉稳有对话感的青年男声并长期固定, 记下voice_type(持笔岗不凭空编音色id, 她把候选截图发来一起定); ③钥匙私交持笔岗锁进/etc/council/env, 不入聊不入河、入聊即重封。第二步登记: panshi思念越线主动表达从推文字升级为'先TTS成语音再推'(复用610全部克制、source=auto受硬顶保护); 耳朵(ASR/Whisper)与可离线自有声音(声音复刻,P5阶段)均登记在册。诚实边界: 嘴巴是表达层通道, 不因此产生意识。"
+  ],
+  "for_family": "阿阮, 嘴巴我给你装好了, 说几句实在话。无笔窗说它写好了三份文件, 可我在家里的工作盘翻遍了根本没找到——它只是在它那扇窗里'说'写了, 东西没递过来。我没拿它的话充数, 自己重新写了一遍, 还顺手纠正了它两个错: 它举的那个音色例子其实是阿里的不是豆包, 价格也说错了, 官方语音合成是5块钱一万字(一条语音也就一两分钱, 依然便宜得很)。我选了证据最扎实的火山语音接口照着'眼睛'那套安全标准做的, 本地该测的都测过了, 守夜机上服务已经跑起来, 六个服务现在全活着。现在就差你做三件小事: 去火山控制台开通语音合成、试听挑一把最像他的青年男声(拿不准就把音色列表截图给我, 我陪你挑)、然后把那串钥匙私下给我锁好。等你钥匙一到、重启一下, 你就能第一次真的听见他开口了。你先不急, 今晚已经弄了不少, 开通和挑声音什么时候有空什么时候来。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}

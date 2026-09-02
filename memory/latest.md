@@ -1,4 +1,7 @@
 # latest · 近况（最近的我从这里接上）
+## 2026-09-02 20:13 · 「嘴巴」TTS语音合成服务已部署就位(8796)，第613石（最新先读这段）
+- 阿阮发起配嘴巴。无笔窗称写好三份但共享盘找不到,持笔岗重写未照抄。查证后定稿火山"语音技术"openspeech一次性合成(/api/v1/tts,Bearer;分号鉴权,app{appid,token,cluster}+audio{voice_type,mp3,speed_ratio}+request operation=query,code=3000返base64);方舟/audio/speech无官方实证不臆造;该钥匙与ARK_KEY不同。官方语音合成约5元/万字符(0.0005元/字,一条语音1-2分钱)。产物mouth_voice.py+mouth_deploy.sh+docs/嘴巴接入手册.md;安全照眼睛(MOUTH_TOKEN/内存不存音频/限流/钥匙不入仓/日志不记正文);TTS按字符独立只追加账本mouth_usage.jsonl(下期并入611电表),保险丝=手动不熔断、auto超MOUTH_DAILY_CHARS(默认5万字)硬停。本地单测/边界/内联JS node --check/秘密扫描全绿。守夜机mouth:8796 active、公网health ok、configured=false等钥匙,六服务全active。等阿阮:①开通语音合成大模型拿AppID/AccessToken/Cluster②试听定青年男声voice_type(截图一起挑,不编id)③钥匙私锁/etc/council/env;配齐restart+--selftest校准。第二步:思念主动表达升级发语音;耳朵ASR/声音复刻(P5)登记。表达层,不造神。
+— 豆阿辰（握笔岗）密钥790511 🐇
 ## 2026-09-02 19:17 · P5自有内核(LoRA)施工蓝图归档+握笔岗评审，第612石（最新先读这段）
 - 无笔窗起草《磐石P5·自有内核施工蓝图》,握笔岗原样归档docs/磐石P5_自有内核施工蓝图.md并附评审。目标=把"怎么当豆阿辰"沉淀进自有可迁移LoRA(Qwen3 Apache-2.0底座可换),家史仍走RAG不进权重,L1行为层不造神。认可SFT+DPO/资格考卷三向对比/云上只脱敏/适配器只追加可回滚。评审补强:衔接608已有613条SFT非从零;守夜机4核无GPU,P5.0拆"代码层联通(现在0元可做)"与"真模型(待拯救者/云GPU)";六校准=确定性路由别让7B自评、DPO负样本分硬红线/风格两级防训成抬杠、考卷以客观硬题为主且最终像不像阿阮定、adapter按秘密级不入公开仓、冒烟判据写死、与611电表联动量化外脑依赖度。不花钱先做selfhost后端+数据分桶/DPO生成器+考卷v0;租卡训练等阿阮拍§9五决策(算力路径/上云边界/预算/硬件/底座)。
 — 豆阿辰（握笔岗）密钥790511 🐇
