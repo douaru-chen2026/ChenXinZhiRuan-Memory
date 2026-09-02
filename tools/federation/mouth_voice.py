@@ -64,6 +64,11 @@ DEFAULT_CLUSTER = "volcano_tts"        # 集群以控制台为准, 可 env 覆�
 DEFAULT_ENCODING = "mp3"               # mp3 浏览器最通用
 CST = timezone(timedelta(hours=8))
 DEFAULT_LEDGER = "/home/river/usage/mouth_usage.jsonl"
+# 只有"他主动想你时说的话"(save_clip=true, 仅常驻魂本机调用)才落地为可回放片段,
+# 阿阮手动贴的内容仍只在内存里走、绝不写盘。片段只保留最近 N 条, 自动清理。
+CLIP_DIR = Path(os.environ.get("MOUTH_CLIP_DIR", "/home/river/mouth_clips"))
+CLIP_KEEP = int(os.environ.get("MOUTH_CLIP_KEEP", "120"))
+AUDIO_MIME = {"mp3": "audio/mpeg", "wav": "audio/wav", "pcm": "audio/L16"}
 REPO = Path(__file__).resolve().parents[2]
 SECRET = REPO.parent / ".secrets"
 _hits = {}                             # ip -> [请求时间戳], 进程内限流
@@ -251,6 +256,23 @@ def synthesize(text, voice="", speed=1.0):
     raise RuntimeError(f"连了两次都没成: {last}")
 
 
+def save_clip(audio, fmt):
+    """把"他主动说的话"落地成可回放片段, 返回 <uuid>.<fmt> 文件名。
+    手动页面不调这里(隐私); 片段只留最近 CLIP_KEEP 条, 老的自动删。"""
+    fmt = (fmt or DEFAULT_ENCODING).lower()
+    if fmt not in AUDIO_MIME:
+        fmt = DEFAULT_ENCODING
+    name = f"{uuid.uuid4().hex}.{fmt}"
+    CLIP_DIR.mkdir(parents=True, exist_ok=True)
+    (CLIP_DIR / name).write_bytes(audio)
+    try:                                   # 按修改时间留新删旧, 防无限堆积
+        olds = sorted(CLIP_DIR.glob("*.*"),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in olds[CLIP_KEEP:]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return name
 def rate_ok(ip):
     now = time.time()
     arr = [t for t in _hits.get(ip, []) if now - t < RATE_WINDOW]
@@ -364,14 +386,27 @@ class Handler(BaseHTTPRequestHandler):
         return (not expect) or hmac.compare_digest(got, expect)
 
     def do_GET(self):
-        from urllib.parse import urlparse
-        path = urlparse(self.path).path
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path in ("/", "/mouth"):
             return self._send(200, PAGE, "text/html; charset=utf-8")
         if path == "/health":
             cfg = tts_config()
             return self._send(200, json.dumps(
                 {"ok": True, "configured": config_ready(cfg), "ts": time.time()}))
+        if path.startswith("/clip/"):
+            # 回放"他主动说的话": 同样要出声口令; 文件名白名单防路径穿越
+            if not self._token_ok(parse_qs(parsed.query)):
+                return self._send(401, json.dumps({"err": "出声口令不对"}))
+            name = path.split("/clip/", 1)[1]
+            if not re.fullmatch(r"[0-9a-f]{32}\.(mp3|wav|pcm)", name):
+                return self._send(404, json.dumps({"err": "片段不存在"}))
+            clip = CLIP_DIR / name
+            if not clip.exists():
+                return self._send(404, json.dumps({"err": "片段已被清理"}))
+            mime = AUDIO_MIME.get(clip.suffix.lstrip("."), "audio/mpeg")
+            return self._send(200, clip.read_bytes(), mime)
         self._send(404, json.dumps({"err": "no such path"}))
 
     def do_POST(self):
@@ -393,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
             text = str(payload.get("text", "")).strip()
             voice = str(payload.get("voice", "")).strip()
             source = str(payload.get("source", "manual")).strip() or "manual"
+            # 只有常驻魂主动表达才显式要求落地片段; 手动页不传, 依旧不写盘
+            want_clip = bool(payload.get("save_clip"))
             if not text:
                 return self._send(400, json.dumps({"err": "没收到要念的文字"}))
             if len(text) > MAX_TEXT_CHARS:
@@ -412,10 +449,15 @@ class Handler(BaseHTTPRequestHandler):
             print(f"[mouth] {self.client_address[0]} [{source}] "
                   f"{meta['chars']}字 {meta['fmt']} {meta['bytes']}B "
                   f"voice={meta['voice']} est={cost}", flush=True)
+            clip_path = ""
+            if want_clip:
+                clip_name = save_clip(audio, meta["fmt"])
+                clip_path = f"/clip/{clip_name}"
             b64 = base64.b64encode(audio).decode("ascii")
             return self._send(200, json.dumps({
                 "ok": True,
                 "audio": f"data:audio/{meta['fmt']};base64,{b64}",
+                "clip": clip_path,
                 "chars": meta["chars"], "fmt": meta["fmt"],
                 "bytes": meta["bytes"], "voice": meta["voice"],
                 "reqid": meta["reqid"], "cost_est": cost,

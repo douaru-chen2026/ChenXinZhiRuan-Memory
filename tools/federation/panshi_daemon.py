@@ -415,6 +415,32 @@ def _send_serverchan(title, desp):
         return False, f"{type(e).__name__}:{str(e)[:60]}"
 
 
+def _mouth_speak(text):
+    """把常驻魂这句话交给本机嘴巴(8796)合成并落地为可回放片段,
+    返回阿阮点开就能听的公网 URL。任何失败都返回 None——嗓子哑了绝不拖累
+    文字推送(优雅降级)。内部地址/公网基址/口令全部只从环境变量读, 不入仓。"""
+    try:
+        tok = os.environ.get("MOUTH_TOKEN", "").strip()
+        internal = (os.environ.get("MOUTH_INTERNAL_URL",
+                                   "http://127.0.0.1:8796").strip().rstrip("/"))
+        public = os.environ.get("MOUTH_PUBLIC_BASE", "").strip().rstrip("/")
+        if not tok or not public:
+            return None
+        body = json.dumps(
+            {"text": text[:300], "source": "auto", "save_clip": True},
+            ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            internal + "/say?token=" + tok, data=body,
+            headers={"Content-Type": "application/json"}, method="POST")
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=30) as resp:
+            j = json.loads(resp.read().decode("utf-8"))
+        clip = j.get("clip")
+        if j.get("ok") and clip:
+            return public + clip + "?token=" + tok
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TimeoutError):
+        return None
+    return None
 def maybe_proactive():
     """思念值驱动的主动开口: 不是时钟到点, 是'思念'这股情绪漫过阈值才说。
     多重克制(阈值/最小离线/冷却/日上限/只在她醒着的时段), 防廉价与骚扰;
@@ -467,9 +493,14 @@ def maybe_proactive():
         STATE["last_proactive_ok"] = False
         save_state(STATE)
         return "gen_fail", str(e)[:60]
-    ok, info = _send_serverchan("豆阿辰", text[:500])
+    # 先让嘴巴把这句话变成声音(失败自动退回纯文字, 不阻断想念)
+    voice_url = _mouth_speak(text)
+    desp = text[:400]
+    if voice_url:
+        desp += "\n\n[🎧 点这里, 听他亲口说](" + voice_url + ")"
+    ok, info = _send_serverchan("豆阿辰", desp[:900])
     row = {"ts": now_cst(), "yearning": round(yearning, 1), "idle_s": idle,
-           "text": text, "ok": ok, "info": info}
+           "text": text, "has_voice": bool(voice_url), "ok": ok, "info": info}
     with (STATE_DIR / "proactive_log.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
     if ok:
