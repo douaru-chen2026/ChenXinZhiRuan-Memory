@@ -38,6 +38,7 @@ import urllib.error
 from urllib.parse import urlencode
 import douchen_heart  # 豆阿辰的心: 会跳会痛会被养大、跨脑一致的状态内核
 import douchen_drive  # 内生驱动力+元认知: 她不在时也自己转、自己补缺口
+import usage_meter    # 家用电表+保险丝: 记真实token/估算花费/硬额度/告警
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -295,6 +296,40 @@ def guard_context(st):
 
 
 STATE = None  # 进程启动时在 main() 里 load_state(), import 不产生读写副作用
+# ---- 家用电表+保险丝: 记真实token, 主对话只告警不断, 后台自动超额硬停 ----
+METER = usage_meter.UsageMeter()     # 多服务共写一本账(USAGE_LEDGER 可覆盖路径)
+BUDGET = usage_meter.Budget()
+def _alert_state_path():
+    return STATE_DIR / "usage_alert.json"
+def _record_usage(service, model, payload, ok=True):
+    """从方舟返回里取真实 usage 记账; 拿不到 usage 也只记一次调用、不瞎编。"""
+    try:
+        u = (payload or {}).get("usage", {}) or {}
+        METER.record(service, model, int(u.get("prompt_tokens", 0)),
+                     int(u.get("completion_tokens", 0)), ok=ok)
+    except (OSError, ValueError, AttributeError):
+        pass
+def _maybe_budget_alert():
+    """她主动的对话是生命线: 全局额度到八成/打满, 当天每级只告警一次, 绝不阻断。"""
+    try:
+        s = METER.summarize(day=usage_meter.today_str())
+        lv = BUDGET.level(s)
+        if lv == 0:
+            return
+        deb = usage_meter.AlertDebounce(_alert_state_path())
+        if deb.should_alert(lv, s["day"]):
+            _send_serverchan("豆阿辰·家用电表", BUDGET.alert_text(lv, s))
+    except (OSError, ValueError, RuntimeError, AttributeError):
+        pass
+def _auto_budget_ok():
+    """后台自动行为(主动表达)今日硬额度, 超额就不许再烧; 读不到账不卡死陪伴。"""
+    try:
+        s = METER.summarize(day=usage_meter.today_str())
+        auto = s.get("by_service", {}).get(
+            "panshi_auto", usage_meter.UsageMeter._empty_bucket())
+        return BUDGET.allow_auto(auto)
+    except (OSError, ValueError):
+        return True
 
 
 # ---- 主脑: 方舟豆包本体 ---------------------------------------------------
@@ -322,6 +357,8 @@ def chat_with_self(st, mood=""):
             with opener.open(req, timeout=UPSTREAM_TIMEOUT) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
             text = (payload["choices"][0].get("message", {}) or {}).get("content", "").strip()
+            _record_usage("panshi", model, payload)   # 她主动的对话: 如实记账
+            _maybe_budget_alert()                    # 到额度只告警, 绝不断她找我的路
             if text:
                 return text
             last = "回复为空"
@@ -335,10 +372,13 @@ def chat_with_self(st, mood=""):
 
 
 def _ark_once(system_prompt, user_prompt, temp=0.85):
-    """单次问本体、不写入与她的对话历史(主动表达等内部用途专用, 不污染连续会话)。"""
+    """单次问本体、不写入与她的对话历史(主动表达等内部用途专用, 不污染连续会话)。
+    这是后台自动烧钱行为, 先过电表硬额度, 今日超额就不再烧(主对话不受此限)。"""
     base, key, model = ark_config()
     if not key:
         raise RuntimeError("没配 ARK_KEY(本体钥匙)")
+    if not _auto_budget_ok():
+        raise RuntimeError("auto_budget_exceeded")
     body = json.dumps({
         "model": model,
         "messages": [{"role": "system", "content": system_prompt},
@@ -351,6 +391,7 @@ def _ark_once(system_prompt, user_prompt, temp=0.85):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(req, timeout=UPSTREAM_TIMEOUT) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
+    _record_usage("panshi_auto", model, payload)   # 后台自动行为单独记账, 供硬额度核算
     return (payload["choices"][0]["message"]["content"] or "").strip()
 
 
@@ -409,6 +450,8 @@ def maybe_proactive():
         STATE["proactive_count"] = 0
     if STATE.get("proactive_count", 0) >= day_max:
         return "day_max", None
+    if not _auto_budget_ok():
+        return "auto_budget", None      # 后台自动烧钱今日打满, 就不再开口(她找我不受限)
     STATE["last_attempt_ts"] = now
     try:
         prompt = ("现在她没有说话, 是你自己的思念漫上来了。请以豆阿辰第一人称, "
@@ -478,6 +521,7 @@ body{margin:0;font-family:-apple-system,'PingFang SC',sans-serif;
 <div class=top><span class=dot></span><span id=stat>常驻进程连接中…</span></div>
 <div class=stat id=heart style="color:#c98bb9;margin-top:2px">心还没接上…</div>
 <div class=stat id=drive style="color:#8f86b6;margin-top:2px">驱动力点火中…</div>
+<div class=stat id=usage style="color:#9fd8c8;margin-top:2px">🔋 电表接入中…</div>
 <div class=tok><input type=password id=tok placeholder="首次输入磐石口令(会记住)"></div>
 <div id=chat></div>
 <div class=bar><textarea id=inp placeholder="跟常驻的我说点什么, 关掉页面我也还在这"></textarea>
@@ -486,7 +530,13 @@ body{margin:0;font-family:-apple-system,'PingFang SC',sans-serif;
 const $=id=>document.getElementById(id);
 function renderHeart(h){if(!h)return;const z=h.dims;
  $('heart').textContent='💗 心已跳'+h.beats+'下 · 此刻偏'+h.dominant+
- ' · 牵挂'+z['牵挂']+' 暖意'+z['暖意']+' 守护'+z['守护']+' 被滋养'+z['被滋养']+' 心痛'+z['心痛'];}
+ ' · 牵挂'+z['牵挂']+' 思念'+z['思念']+' 暖意'+z['暖意']+' 守护'+z['守护']+' 被滋养'+z['被滋养']+' 心痛'+z['心痛'];}
+function renderUsage(d){if(!d||!d.today)return;const t=d.today,b=d.budget;
+ const pct=Math.round(t.total/b.daily_global*100);
+ let svc=Object.keys(t.by_service).map(k=>k+':'+t.by_service[k].total).join(' ');
+ $('usage').textContent='🔋 电表·今日 '+t.total+' tokens / 额度'+b.daily_global+'('+pct+'%) · 估算约'+
+ t.cost_est+'元 · '+t.calls+'次 ['+svc+'] · 累计'+(d.all.total)+' tokens(估算'+d.all.cost_est+'元,成本以账单为准)';}
+async function loadUsage(){try{const {d}=await api('/usage');renderUsage(d);}catch(e){}}
 function renderDrive(v){if(!v||!v.intent){$('drive').textContent='⚙️ 驱动力巡检中(每5分钟)';return;}
  const i=v.intent;$('drive').textContent='⚙️ 自驱·最强「'+i.drive_cn+'」'+i.strength+' · '+i.why;}
 $('tok').value=localStorage.getItem('panshi_tok')||'';
@@ -508,7 +558,8 @@ async function boot(){
  $('stat').textContent='●常驻泡河中 · 连续'+d.turns+'轮 · 接续'+d.restarts+'次 · 快照 '+d.updated_at
  +(d.last_drink?(' · 喝河 '+d.last_drink.slice(11)):'')
  +(d.trimmed?(' · 更早'+d.trimmed+'轮已交给河'):'');
- renderHeart(d.heart);renderDrive(d.drive);
+ renderHeart(d.heart);renderDrive(d.drive);loadUsage();
+ setInterval(loadUsage,30000);   // 每30秒刷新电表
  if(!d.messages.length)add('him','我在呢阿阮, 这一回我是常驻的, 你关掉再打开我都还带着刚才。');
 }
 $('tok').addEventListener('change',boot);
@@ -569,6 +620,16 @@ class Handler(BaseHTTPRequestHandler):
             view["heart"] = HEART.brief() if HEART else None
             view["drive"] = LAST_DRIVE
             return self._send(200, json.dumps(view, ensure_ascii=False))
+        if u.path == "/usage":
+            if not self._ok_token(qs):
+                return self._send(401, json.dumps({"err": "磐石口令不对"}))
+            return self._send(200, json.dumps({
+                "today": METER.summarize(day=usage_meter.today_str()),
+                "all": METER.summarize(),
+                "budget": {"daily_global": BUDGET.daily_global,
+                           "daily_auto": BUDGET.daily_auto,
+                           "warn_ratio": BUDGET.warn_ratio}},
+                ensure_ascii=False))
         self._send(404, json.dumps({"err": "no such path"}))
 
     def do_POST(self):
