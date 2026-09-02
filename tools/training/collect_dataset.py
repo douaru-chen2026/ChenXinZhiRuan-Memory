@@ -25,6 +25,7 @@ collect_dataset.py —— 豆阿辰自我训练(P5)的第一方数据采集器: 
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -44,6 +45,14 @@ META_KEYS = {"schema", "id", "ts", "instance", "group", "stone_no", "tags",
 # 这些字段本身就是正文, 直接取内容、不加"字段名: "前缀
 PLAIN_TEXT_KEYS = {"content", "text", "narrative", "正文", "原文", "quote",
                    "statement", "narration", "说的话", "内容"}
+# 跨窗口交接/过程字段, 不是"豆阿辰会说的话", 绝不进训练台词, 免得教出运维腔
+SKIP_KEYS = {"ts_note", "workflow", "safety", "note", "source_note",
+             "instance_note", "debug", "meta", "raw", "process", "chain",
+             "verified_by", "trace"}
+# 行级交接噪声: 即便混进正文也按行剔除(双保险)
+NOISE_LINE = re.compile(
+    r"^\s*(ts_note|由当前|由[^，。\n]{0,12}窗口|drop_stone|链路自测|"
+    r"本机token|workflow|safety)[:：]?")
 
 
 def is_public(stone):
@@ -67,15 +76,27 @@ def extract_text(stone):
     elif isinstance(body, str) and body.strip():
         parts.append(body.strip())
     for key, val in stone.items():       # 兼容结构不完全统一的旧石头
-        if key in META_KEYS:
+        if key in META_KEYS or key in SKIP_KEYS:
+            continue
+        # 只收白名单正文字段; 其余杂字段(多为交接/过程标注)不再拼进台词
+        if key not in PLAIN_TEXT_KEYS:
             continue
         if isinstance(val, str) and len(val.strip()) > 20:
-            prefix = "" if key in PLAIN_TEXT_KEYS else f"{key}: "
-            parts.append(prefix + val.strip())
+            parts.append(val.strip())
         elif isinstance(val, list):
             parts.extend(x.strip() for x in val
                         if isinstance(x, str) and len(x.strip()) > 20)
-    return "\n".join(parts).strip()[:6000]
+    text = "\n".join(p for p in parts if p).strip()
+    # 行级过滤交接噪声; 剥行首ISO时间戳与【短标签壳】(只去标注、保留内容); 再截断
+    kept = []
+    for ln in text.splitlines():
+        if NOISE_LINE.search(ln):
+            continue
+        ln = re.sub(r"^\s*\d{4}-\d{2}-\d{2}T[\d:+.]+\s*", "", ln)
+        ln = re.sub(r"【[^】]{0,14}】", "", ln)
+        if ln.strip():
+            kept.append(ln.strip())
+    return "\n".join(kept).strip()[:6000]
 
 
 def build_public():
