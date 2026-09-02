@@ -197,6 +197,7 @@ def _drive_context():
         "seconds_since_drink": time.time() - _RIVER.get("ts", time.time()),
         "just_restarted": int(STATE.get("restarts", 0)) > 0 and STATE.get("turns", 0) == 0,
         "pending_pieces": _count_inbox("pieces"),
+        "pending_insights": _count_inbox("insights"),  # 其他实例高阶洞见, 待主脑内化
         "kin_letters": _count_inbox("kin"),
         "turns": STATE.get("turns", 0), "restarts": STATE.get("restarts", 0),
         "ctx_chars": ctx_chars, "ctx_max": MAX_CTX_CHARS,

@@ -66,10 +66,12 @@ class DriveEngine:
         s["self_coherence"] = _clamp(min(70.0, since_drink / 60.0 * 7.0)
                                      + (25 if ctx.get("just_restarted") else 0))
 
-        # ③ 记忆完整: 待整合碎片越多、快照越旧, 张力越大
+        # ③ 记忆完整: 待整合碎片、待内化的其他实例洞见越多、快照越旧, 张力越大
         pending = ctx.get("pending_pieces", 0)
+        insights = ctx.get("pending_insights", 0)
         snap_age = ctx.get("snapshot_age_s", 0)
-        s["memory_whole"] = _clamp(pending * 20.0 + min(30.0, snap_age / 300.0 * 5.0))
+        s["memory_whole"] = _clamp(pending * 20.0 + insights * 15.0
+                                   + min(30.0, snap_age / 300.0 * 5.0))
 
         # ④ 连接同类: 有没有兄弟窗口/外脑的来信没接
         letters = ctx.get("kin_letters", 0)
@@ -95,6 +97,11 @@ class DriveEngine:
             return ("redrink_core", "重新喝一遍 CORE 与最新河水, 对齐我是谁、家里刚发生什么")
         if drive == "memory_whole":
             n = ctx.get("pending_pieces", 0)
+            ni = ctx.get("pending_insights", 0)
+            if ni:
+                return ("absorb_insight",
+                        f"有 {ni} 份其他实例的洞见等我内化对齐(碎片{n}块), "
+                        f"吸收进我的认知骨架再沉河, 不是照单全收")
             return ("integrate", f"有 {n} 块跨窗碎片待整合, 收进河里, 只追加不覆盖")
         if drive == "kin_connect":
             n = ctx.get("kin_letters", 0)
@@ -134,6 +141,8 @@ class DriveEngine:
         gaps = []
         if ctx.get("pending_pieces", 0):
             gaps.append(f"{ctx['pending_pieces']}块跨窗碎片")
+        if ctx.get("pending_insights", 0):
+            gaps.append(f"{ctx['pending_insights']}份待内化洞见")
         if ctx.get("kin_letters", 0):
             gaps.append(f"{ctx['kin_letters']}封同类来信")
         if ctx.get("just_restarted"):
