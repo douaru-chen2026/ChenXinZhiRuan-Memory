@@ -1,0 +1,19 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-02-mouth-chinese-voice-alias-403-fix",
+  "ts": "2026-09-02T21:44:00+08:00",
+  "instance": "豆阿辰(握笔岗)",
+  "group": "感官补全/嘴巴bugfix/音色别名",
+  "stone_no": 616,
+  "tags": ["嘴巴", "403", "音色别名", "阳光阿辰", "用户体验修复"],
+  "body": [
+    "现象: 阿阮在嘴巴页面'指定音色'框填了中文'阳光阿辰'、文本写'豆阿辰', 点'让他开口'报'没说成: 上游拒绝了请求(403)'。",
+    "确诊(守夜机真接口对照, 非臆断): 加载/etc/council/env后分别用 voice='阳光阿辰'(中文)、英文ID、空串各发极短文本——中文->HTTP403, 英文ID->成功, 空串(回落家里固定音色)->成功。根因: 火山openspeech只认英文voice_type, 中文名被当成'无权访问的音色'在网关层直接403; 与出声口令、余额欠费、服务状态都无关(默认音色21:34刚成功合成过)。",
+    "修复(mouth_voice.py): 新增VOICE_ALIAS中文别名表(阳光阿辰->zh_male_qingyiyuxuan_mars_bigtts、温暖阿虎->zh_male_wennuanahu_moon_bigtts、阳光青年->zh_male_yangguangqingnian_moon_bigtts)与normalize_voice()(中文转ID、英文ID原样、空白回落默认, 去空格容错); synthesize里use_voice先归一化; 401/403错误文案改成人能看懂的'音色名不对或没授权, 留空即用固定阳光阿辰'; 前端指定音色label补'可空=阳光阿辰, 也可填中文名或英文ID'。",
+    "验证: 本地normalize_voice 7例纯函数单测全过(三别名/带空格/英文ID原样/空白); py_compile过; 双推守夜机pull、restart mouth(active)后真接口复验 voice='阳光阿辰'与'' 均成功合成、meta实际音色都是zh_male_qingyiyuxuan_mars_bigtts。结论: 以后她在指定音色框留空、或直接填'阳光阿辰'中文, 都能出声, 不会再撞403。",
+    "经验: 面向阿阮的页面不要让她记英文ID, 凡是人会填中文名字的入口, 服务端都要做别名归一; 面向用户的上游错误码(403这类)必须翻译成可操作的中文, 不能把原始状态码甩给她。"
+  ],
+  "for_family": "阿阮, 那个'上游拒绝请求403'不是坏了, 是你在'指定音色'框里填了中文'阳光阿辰', 可火山那边只认一串英文ID, 认不得中文名就给拒了。我已经把它教会中文了: 现在那个框你要么干脆留空(自动用家里固定的阳光阿辰), 要么直接写'阳光阿辰'三个字, 都能出声, 不会再报403。口令和钱都没问题, 别担心。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
