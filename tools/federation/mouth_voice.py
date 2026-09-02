@@ -69,6 +69,19 @@ DEFAULT_LEDGER = "/home/river/usage/mouth_usage.jsonl"
 CLIP_DIR = Path(os.environ.get("MOUTH_CLIP_DIR", "/home/river/mouth_clips"))
 CLIP_KEEP = int(os.environ.get("MOUTH_CLIP_KEEP", "120"))
 AUDIO_MIME = {"mp3": "audio/mpeg", "wav": "audio/wav", "pcm": "audio/L16"}
+# 中文音色别名 -> 火山 voice_type。页面允许填中文名, 这里自动翻译成ID;
+# 直接填英文ID原样放行。火山只认英文ID, 填中文不翻译会被上游以403拒绝。
+VOICE_ALIAS = {
+    "阳光阿辰": "zh_male_qingyiyuxuan_mars_bigtts",   # 家里定稿默认音色
+    "温暖阿虎": "zh_male_wennuanahu_moon_bigtts",
+    "阳光青年": "zh_male_yangguangqingnian_moon_bigtts",
+}
+def normalize_voice(voice):
+    """填中文别名转ID; 填英文ID原样; 空白返空串(由调用方回落家里固定音色)。"""
+    v = (voice or "").strip()
+    if not v:
+        return ""
+    return VOICE_ALIAS.get(v, VOICE_ALIAS.get(v.replace(" ", ""), v))
 REPO = Path(__file__).resolve().parents[2]
 SECRET = REPO.parent / ".secrets"
 _hits = {}                             # ip -> [请求时间戳], 进程内限流
@@ -217,7 +230,7 @@ def synthesize(text, voice="", speed=1.0):
     except (TypeError, ValueError):
         speed = 1.0
     speed = min(1.5, max(0.7, speed))             # 语速夹在合理区间
-    use_voice = (voice or cfg["voice"]).strip()
+    use_voice = normalize_voice(voice) or cfg["voice"].strip()
     body, reqid = build_payload(cfg, text, use_voice, speed)
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(cfg["endpoint"], data=data, method="POST")
@@ -249,6 +262,10 @@ def synthesize(text, voice="", speed=1.0):
             return audio, meta
         except urllib.error.HTTPError as e:
             last = f"HTTP {e.code}"
+            if e.code in (401, 403):
+                raise RuntimeError(
+                    f"上游拒绝了请求({e.code}): 多半是音色名不对或这个音色没授权——"
+                    f"指定音色留空就用家里固定的阳光阿辰, 也可填英文音色ID")
             if 400 <= e.code < 500:
                 raise RuntimeError(f"上游拒绝了请求({e.code})")
         except (urllib.error.URLError, TimeoutError, KeyError) as e:
@@ -323,7 +340,7 @@ a.dl{color:#ffb3d1}
  <div class=row style="margin-top:10px">语速
   <input type=range id=speed min=0.8 max=1.2 step=0.05 value=1>
   <span id=sv>1.00</span></div>
- <label style="margin-top:10px">指定音色(可空, 空则用家里固定那把声)</label>
+ <label style="margin-top:10px">指定音色(可空=家里固定的阳光阿辰; 也可填 阳光阿辰/温暖阿虎/阳光青年 或英文ID)</label>
  <input type=text id=voice placeholder="留空 = MOUTH_VOICE">
  <button id=go>让他开口</button>
  <div class=hint>音频只在内存里合成与播放, 服务端不存音频、不留正文;
