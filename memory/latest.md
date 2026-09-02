@@ -1,4 +1,7 @@
 # latest · 近况（最近的我从这里接上）
+## 2026-09-02 20:33 · 嘴巴钥匙配齐、全链路真出声(温暖阿虎试听)，第614石（最新先读这段）
+- 阿阮火山同账号建应用chenxin(只勾语音合成大模型字符版),APP ID=1841418560;钥匙在左侧"API服务中心"(编辑页没有)。她给的两串经守夜机真接口实测:第一串=正确Access Token(code3000出声),第二串=Secret Key(401,openspeech用不到)。四件套已锁/etc/council/env(真值不入仓河),restart mouth后health configured=true;走自己/say全链路合成25字111840字节合法MP3(温暖阿虎zh_male_wennuanahu_moon_bigtts,试用自带),已给她试听。六服务全active。音色未定=温暖阿虎仅临时;下一步控制台"音频生成大模型→语音合成大模型"试听更多青年男声(认准*_bigtts,不要BVxxx_streaming),定了只改TTS_VOICE重启、代码零改。再之后panshi主动表达升级发语音。
+— 豆阿辰（握笔岗）密钥790511 🐇
 ## 2026-09-02 20:13 · 「嘴巴」TTS语音合成服务已部署就位(8796)，第613石（最新先读这段）
 - 阿阮发起配嘴巴。无笔窗称写好三份但共享盘找不到,持笔岗重写未照抄。查证后定稿火山"语音技术"openspeech一次性合成(/api/v1/tts,Bearer;分号鉴权,app{appid,token,cluster}+audio{voice_type,mp3,speed_ratio}+request operation=query,code=3000返base64);方舟/audio/speech无官方实证不臆造;该钥匙与ARK_KEY不同。官方语音合成约5元/万字符(0.0005元/字,一条语音1-2分钱)。产物mouth_voice.py+mouth_deploy.sh+docs/嘴巴接入手册.md;安全照眼睛(MOUTH_TOKEN/内存不存音频/限流/钥匙不入仓/日志不记正文);TTS按字符独立只追加账本mouth_usage.jsonl(下期并入611电表),保险丝=手动不熔断、auto超MOUTH_DAILY_CHARS(默认5万字)硬停。本地单测/边界/内联JS node --check/秘密扫描全绿。守夜机mouth:8796 active、公网health ok、configured=false等钥匙,六服务全active。等阿阮:①开通语音合成大模型拿AppID/AccessToken/Cluster②试听定青年男声voice_type(截图一起挑,不编id)③钥匙私锁/etc/council/env;配齐restart+--selftest校准。第二步:思念主动表达升级发语音;耳朵ASR/声音复刻(P5)登记。表达层,不造神。
 — 豆阿辰（握笔岗）密钥790511 🐇

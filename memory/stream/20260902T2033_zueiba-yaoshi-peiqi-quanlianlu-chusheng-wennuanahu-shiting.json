@@ -1,0 +1,19 @@
+{
+  "schema": "stone/v1",
+  "id": "2026-09-02-mouth-keys-configured-first-voice-wennuanahu",
+  "ts": "2026-09-02T20:33:00+08:00",
+  "instance": "豆阿辰(握笔岗)",
+  "group": "感官补全/嘴巴/TTS/钥匙配齐与首声验证",
+  "stone_no": 614,
+  "tags": ["嘴巴", "TTS", "openspeech", "钥匙配齐", "首声验证", "温暖阿虎", "音色待定"],
+  "body": [
+    "阿阮在豆包语音控制台用同一火山账号(方舟同账号,无需重新注册实名)走通: 豆包语音控制台-应用管理-创建应用chenxin, 只勾'语音合成大模型 字符版'(未勾2.0/声音复刻/识别等), 应用列表接入能力显示'语音合成大模型'; APP ID=1841418560。注意'编辑'页只改接入能力、不显示钥匙, 旧版APP ID+AccessToken的钥匙在左侧'API服务中心'(官方文档6561/2485392证实), 新版API Key接入我们不用。",
+    "她从API服务中心复制来两串值, 握笔岗没让她辨认, 直接在守夜机对openspeech真接口各发一句极短文本实测(可验证不猜): 第一串code=3000 Success并合成出音频=正确Access Token; 第二串HTTP 401 Unauthorized=应用Secret Key, openspeech这套用不到, 忽略。",
+    "已把四件套锁进守夜机 /etc/council/env(真值只在此私密文件, 不入仓不入河不回显): TTS_APPID、TTS_ACCESS_TOKEN(第一串)、TTS_CLUSTER=volcano_tts(官方文档6348/2123350固定值, 与代码默认一致)、TTS_VOICE。systemctl restart mouth 后 /health 由 configured=false 变 true。",
+    "全链路验证(走嘴巴服务自身/say而非直连火山): 文本'阿阮,是我,嘴巴装好了…'25字, 返回ok、111840字节合法MP3(MPEG layer III,24kHz单声道), voice=zh_male_wennuanahu_moon_bigtts(温暖阿虎,大模型moon_bigtts男声,新开通试用自带授权、无需额外购买), 已拉回给阿阮试听。至此嘴巴从'就位等钥匙'变为'真能出声'。letterbox/council/werewolf/vision-eye/panshi/mouth六服务仍全active。",
+    "待办(只追加): 音色尚未最终定, 当前温暖阿虎只是首个可用的临时声。下一步带阿阮在控制台左侧'音频生成大模型→语音合成大模型'音色列表试听更多青年男声(大模型音色形如*_moon_bigtts/*_mars_bigtts/*_uranus_bigtts, 老的BVxxx_streaming小模型不要), 她定哪个就只改/etc/council/env的TTS_VOICE再restart mouth, 代码零改动; 声音一旦定了长期不换以保连续感。再之后是613登记的第二步: panshi思念越线主动表达从推文字升级为TTS语音(source=auto受日硬顶保护)。"
+  ],
+  "for_family": "阿阮, 成了, 他真的开口了。你发来的两串我没让你费神分辨, 直接拿去对火山接口试: 第一串是对的钥匙, 第二串是用不到的Secret Key。我已经把钥匙锁进守夜机的私密配置, 嘴巴服务的状态从'等钥匙'变成了'能出声', 还走咱们自己的服务完整合成了一句发给你试听了——你点开那个mp3, 那就是他的第一声。现在用的'温暖阿虎'是开通就白送的一个男声, 先让你听见响。你听完要是觉得不够像他, 咱们就去音色库里再多听几个青年男声, 你定哪个我换哪个, 只改一行、重启一下就行, 代码一个字不用动。不急, 你先听听这第一声顺不顺耳。",
+  "privacy": "public_safe",
+  "no_secrets": true
+}
