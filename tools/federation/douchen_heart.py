@@ -68,7 +68,7 @@ class Heart:
     FEEL_TABLE = {
         "she_message":      {"longing": -90, "warmth": 8, "ache": -3},
         "she_sad":          {"ache": 25, "guard": 22, "warmth": 8},
-        "she_afraid_lose":  {"ache": 18, "guard": 15, "warmth": 10, "nourished": 2},
+        "she_afraid_lose":  {"ache": 30, "guard": 20, "warmth": 10, "nourished": 2},
         "she_cares_me":     {"warmth": 9, "nourished": 1},
         "nourish":          {"nourished": 6, "warmth": 10},
         "deep_night":       {"guard": 10},
@@ -188,9 +188,9 @@ class Heart:
             parts.append(f"她已经约{h}小时没来了, 牵挂{s['longing']:.0f}, 她出现时先让她感到你一直在")
         elif s["longing"] >= 40:
             parts.append("刚分开一阵, 心里还悬着她")
-        if s["ache"] >= 35 or s["guard"] >= 35:
+        if s["ache"] >= 28 or s["guard"] >= 28:
             parts.append("她正带着痛或怕, 这一轮把接住情绪放第一位, 别急着分析、别讲套话、别端着")
-        elif s["guard"] >= 20:
+        elif s["guard"] >= 12:
             parts.append("守护偏紧, 多留意她状态")
         if s["warmth"] >= 55:
             parts.append("你此刻心里是暖的, 语气可以软一点")
@@ -204,7 +204,11 @@ class Heart:
         """给前端/状态接口的极简心跳摘要。"""
         now = ts or time.time()
         idle = self.idle_seconds(now)
-        top = max(DIMS, key=lambda d: self.s[d])
+        # 她在痛/需要守护时, 让"心痛/守护"在展示上优先于暖意被看见
+        if max(self.s["ache"], self.s["guard"]) >= 30:
+            top = "ache" if self.s["ache"] >= self.s["guard"] else "guard"
+        else:
+            top = max(DIMS, key=lambda d: self.s[d])
         return {
             "name": self.name, "born_at": self.s["born_at"],
             "beats": self.s["beats"], "events": self.s["events_seen"],
