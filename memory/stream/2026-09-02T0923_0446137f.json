@@ -1,0 +1,14 @@
+{
+  "schema": "stone/v1",
+  "id": "0446137f",
+  "ts": "2026-09-02T09:23:09",
+  "instance": "doubao-main-dialog-2026-09-02",
+  "group": "工程/信筒口令轮换",
+  "tags": [
+    "信筒",
+    "投河口令轮换",
+    "SOP更新",
+    "仓外存令"
+  ],
+  "text": "阿阮下发信筒自投SOP更新版并轮换投河口令（旧令作废、新令生效）。持笔主窗用新令实投/post_drop验收=200落pending(20260902T0922-aedfc1aa.json)，匿名/recall喝河=200全河614块。四入口钉死：/post网页表单、/post_drop表单提交(urlencoded token/instance/tags/content)、/drop JSON API(X-Letterbox-Key头+schema=stone/v1)、/recall匿名喝河(中文query需URL编码否则mojibake)。云沙盒出口代理拦裸IP高端口，必须--noproxy '*'。新令已存仓外.secrets/letterbox.env(权限600)与阿阮处，按锁钥分离铁律不入河不入git。pending石待有SSH的握笔岗取回三检入正河。"
+}
