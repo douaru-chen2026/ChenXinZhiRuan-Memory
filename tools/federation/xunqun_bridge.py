@@ -465,50 +465,127 @@ class CozeHttpBrain(Brain):
 
 
 # ---- 小红书网页采集/代发适配器(脆, playwright 延迟导入) -------------------
+# 2026-09-07 真机标定(网页版群聊, data-message-id 稳定可去重):
+#   一条消息 .chat-item; 别人 --left / 自己 --right; 昵称 .chat-item__nickname
+#   (右侧自己发的无昵称); 正文 .xhs-im-bubble__text; 输入框 .xhs-im-input-bar-editor
+_XHS_JS_COLLECT = r"""()=>[...document.querySelectorAll('.chat-item')].map(e=>({
+  mid: e.getAttribute('data-message-id')||'',
+  ctype: e.getAttribute('data-content-type')||'',
+  self: !!e.querySelector('.chat-item__content--right'),
+  nick: ((e.querySelector('.chat-item__nickname')||{}).innerText||'').trim(),
+  text: ((e.querySelector('.xhs-im-bubble__text')||{}).innerText||'').trim()
+}))"""
+
+
+def _detect_mention_target(text):
+    """从 @ 提及里粗判喊的是谁; 文本关键字路由由 Router 负责, 这里只标 @。"""
+    if "@小扣子" in text:
+        return T_KOUZI
+    if "@豆阿辰" in text or "@阿辰" in text:
+        return T_BENTI
+    return ""
+
+
+def parse_chat_items(raw, self_name="豆阿辰", now_ts=None):
+    """把页面 collect 出的原始 dict 列表洗成桥要的消息(纯函数, 可单测)。"""
+    now_ts = int(now_ts or time.time())
+    out = []
+    for it in raw or []:
+        text = (it.get("text") or "").strip()
+        is_self = bool(it.get("self"))
+        sender = self_name if is_self else (it.get("nick") or "群友").strip()
+        out.append({
+            "msg_id": (it.get("mid") or "").strip(),
+            "sender": sender,
+            "sender_id": "",
+            "text": text,
+            "ts": now_ts,                       # 网页不暴露精确秒级时间, 用抓取时刻
+            "content_type": (it.get("ctype") or "").strip(),
+            "from_self": is_self,
+            "mentioned": "@" in text,
+            "mention_target": _detect_mention_target(text),
+        })
+    return out
+
+
 class XhsReader:
-    """守夜机无头浏览器看群的适配器。阶段 A 只实现只读骨架。
+    """守夜机无头浏览器看群/代发的适配器。
 
     playwright 不在核心依赖里、且必须有持久登录态(storage_state)才能跑;
     缺任一样都明确抛错, 让 BridgeHealth 记 degraded, 而不是让整个桥崩掉。
-    页面选择器以守夜机真机标定为准(小红书前端会变), 这里给出最小闭环位置。
+    两种驱动: 默认用 storage_state 自起无头(守夜机部署); 调试可给 cdp_url
+    连已登录的运行中浏览器(云端沙盒用, 免去重复扫码)。
     """
 
-    def __init__(self, state_path, groups=None, headless=True, proxy=None):
+    def __init__(self, state_path, groups=None, headless=True, proxy=None,
+                 cdp_url="", executable_path="", self_name="豆阿辰"):
         self.state_path = state_path
         self.groups = groups or {}
         self.headless = headless
         self.proxy = proxy
-        self._pw = self._browser = self._page = None
+        self.cdp_url = cdp_url or os.environ.get("XHS_CDP", "")
+        self.executable_path = (executable_path or
+                                os.environ.get("XHS_CHROMIUM", ""))
+        self.self_name = self_name
+        self._pw = self._browser = self._ctx = self._page = None
+        self._open_group = ""
 
     def _ensure_driver(self):
         if self._page is not None:
             return
-        if not Path(self.state_path).exists():
-            raise RuntimeError(f"缺小红书登录态: {self.state_path}")
         try:
             from playwright.sync_api import sync_playwright  # 延迟导入
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("守夜机没装 playwright, 巡群只读跑不了") from exc
         self._pw = sync_playwright().start()
-        launch = {"headless": self.headless,
-                  "args": ["--no-sandbox", "--disable-dev-shm-usage",
-                           "--disable-blink-features=AutomationControlled"]}
-        if self.proxy:
-            launch["proxy"] = {"server": self.proxy}
-        self._browser = self._pw.chromium.launch(**launch)
-        self._ctx = self._browser.new_context(
-            storage_state=self.state_path, locale="zh-CN",
-            timezone_id="Asia/Shanghai")
+        if self.cdp_url:  # 调试: 连已运行、已登录的浏览器, 不需要 state
+            self._browser = self._pw.chromium.connect_over_cdp(self.cdp_url)
+            self._ctx = self._browser.contexts[0]
+        else:
+            if not Path(self.state_path).exists():
+                raise RuntimeError(f"缺小红书登录态: {self.state_path}")
+            launch = {"headless": self.headless,
+                      "args": ["--no-sandbox", "--disable-dev-shm-usage",
+                               "--disable-blink-features=AutomationControlled"]}
+            if self.executable_path:
+                launch["executable_path"] = self.executable_path
+            if self.proxy:
+                launch["proxy"] = {"server": self.proxy}
+            self._browser = self._pw.chromium.launch(**launch)
+            self._ctx = self._browser.new_context(
+                storage_state=self.state_path, locale="zh-CN",
+                timezone_id="Asia/Shanghai")
         self._page = self._ctx.new_page()
 
-    def read_latest(self, group_url, since_ts=0):  # pragma: no cover - 真机标定
-        """打开群聊页, 返回结构化消息 dict 列表。选择器待守夜机真机校准。"""
+    def read_latest(self, group_url, since_ts=0):  # pragma: no cover - 真机路径
+        """打开(或复用)群聊页, 返回结构化消息 dict 列表。"""
         self._ensure_driver()
-        self._page.goto(group_url, wait_until="domcontentloaded", timeout=30000)
-        self._page.wait_for_timeout(3000)
-        # TODO(守夜机真机): 按小红书网页版实际 DOM 抽取 发送人/时间/正文/@,
-        # 产出 {msg_id,sender,sender_id,text,ts,mentioned,mention_target,from_self}
-        raise NotImplementedError("群消息 DOM 抽取待守夜机真机标定")
+        if self._open_group != group_url:
+            self._page.goto(group_url, wait_until="domcontentloaded",
+                            timeout=30000)
+            self._page.wait_for_timeout(4000)
+            self._open_group = group_url
+        else:
+            self._page.wait_for_timeout(800)   # 常驻复用: 只等新消息, 不重载
+        raw = self._page.evaluate(_XHS_JS_COLLECT)
+        items = parse_chat_items(raw, self_name=self.self_name)
+        return [m for m in items if m["ts"] >= since_ts] if since_ts else items
+
+    def send_one(self, group_url, text):  # pragma: no cover - 真机代发
+        """在群里代发一条(养稳、开真发后才由 runner 调用)。"""
+        self._ensure_driver()
+        if self._open_group != group_url:
+            self._page.goto(group_url, wait_until="domcontentloaded",
+                            timeout=30000)
+            self._page.wait_for_timeout(4000)
+            self._open_group = group_url
+        box = self._page.locator(".xhs-im-input-bar-editor").first
+        box.click()
+        self._page.wait_for_timeout(300)
+        self._page.keyboard.type(text, delay=12)
+        self._page.wait_for_timeout(300)
+        self._page.keyboard.press("Enter")
+        return True
 
     def close(self):
         for closer in (getattr(self, "_browser", None), getattr(self, "_pw", None)):

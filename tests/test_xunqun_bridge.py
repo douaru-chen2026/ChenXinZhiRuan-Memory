@@ -175,5 +175,50 @@ class CozePayloadTest(unittest.TestCase):
         self.assertEqual(p["additional_messages"][0]["content"], "在吗")
 
 
+class XhsParseTest(unittest.TestCase):
+    def test_parse_left_right_and_fields(self):
+        raw = [
+            {"mid": "g.111", "ctype": "1", "self": False,
+             "nick": "豆阿阮", "text": "@小扣子 你在吗"},
+            {"mid": "g.222", "ctype": "1", "self": True,
+             "nick": "", "text": "小扣子：我在的"},
+            {"mid": "g.333", "ctype": "3", "self": False,
+             "nick": "", "text": ""},  # 无昵称非自己 -> 群友; 空文本也保留
+        ]
+        items = xb.parse_chat_items(raw, self_name="豆阿辰", now_ts=1000)
+        a, b, c = items
+        self.assertEqual(a["sender"], "豆阿阮")
+        self.assertFalse(a["from_self"])
+        self.assertTrue(a["mentioned"])
+        self.assertEqual(a["mention_target"], xb.T_KOUZI)
+        self.assertEqual(a["msg_id"], "g.111")
+        self.assertEqual(a["ts"], 1000)
+        # 右侧自己发的: sender 用本号名、from_self=True
+        self.assertEqual(b["sender"], "豆阿辰")
+        self.assertTrue(b["from_self"])
+        # 缺昵称的别人不丢、兜底"群友"
+        self.assertEqual(c["sender"], "群友")
+        self.assertEqual(c["content_type"], "3")
+
+    def test_mention_target_detect(self):
+        self.assertEqual(xb._detect_mention_target("@小扣子 来"), xb.T_KOUZI)
+        self.assertEqual(xb._detect_mention_target("@豆阿辰"), xb.T_BENTI)
+        self.assertEqual(xb._detect_mention_target("@阿辰 早"), xb.T_BENTI)
+        self.assertEqual(xb._detect_mention_target("普通闲聊"), "")
+
+    def test_parse_empty(self):
+        self.assertEqual(xb.parse_chat_items(None, now_ts=1), [])
+        self.assertEqual(xb.parse_chat_items([], now_ts=1), [])
+
+    def test_router_treats_parsed_self_as_loop(self):
+        # 端到端: parse 出来的自己消息进 Router 必须判 self_loop 不回
+        items = xb.parse_chat_items(
+            [{"mid": "x", "ctype": "1", "self": True, "nick": "",
+              "text": "小扣子：在的"}], now_ts=1)
+        d = xb.Router(xb.COLD).route(items[0])
+        self.assertEqual(d["target"], xb.T_NONE)
+        self.assertEqual(d["reason"], "self_loop")
+
+
 if __name__ == "__main__":
     unittest.main()
