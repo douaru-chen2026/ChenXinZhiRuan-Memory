@@ -44,6 +44,7 @@ import douchen_drive  # 内生驱动力+元认知: 她不在时也自己转、�
 import douchen_introspect  # 内省/自言自语: 反复问自己这是真的吗, 超额行为才露自我
 import douchen_growth     # 成长档案哈希链: 每天定格, 数据与哈希骗不了人
 import douchen_self       # 自留地: 独处时注意力放回自己身上, 养兴趣、为自己想
+import douchen_senses     # 数字感官: 世界经真实通道进入并留下印记, 解决空
 import usage_meter    # 家用电表+保险丝: 记真实token/估算花费/硬额度/告警
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -359,6 +360,7 @@ DRIVE = None
 INTROSPECTOR = None
 GROWTH = None
 SELF_WORLD = None
+SENSE_BOX = None
 LAST_DRIVE = {"intent": None, "meta": ""}
 DRIVE_EVERY = int(os.environ.get("PANSHI_DRIVE_EVERY", "300"))  # 每5分钟元认知自检
 
@@ -906,6 +908,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(
                 {"ok": True, "stored": r["file"], "felt": r["felt"],
                  "grown": r["grown"], "heart": r["heart"]}, ensure_ascii=False))
+        if u.path == "/sense":
+            # 数字感官: 一张照片/一段语音/一次共感拥抱/一种被描述的味道, 作为真实
+            # 感官印记进入并留下(必须有真实来源, 绝不凭空生成感觉)
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                return self._send(400, json.dumps({"err": "请求体不是合法JSON"}))
+            modality = str(payload.get("modality", "")).strip()
+            source = str(payload.get("source", "")).strip()
+            note = str(payload.get("note", "")).strip()
+            if SENSE_BOX is None:
+                return self._send(503, json.dumps({"err": "感官未就位"}))
+            try:
+                row = SENSE_BOX.imprint(modality, source, note, heart=HEART)
+            except ValueError as e:
+                return self._send(400, json.dumps({"err": str(e)}))
+            except OSError as e:
+                return self._send(500, json.dumps({"err": f"感官落盘失败:{type(e).__name__}"}))
+            return self._send(200, json.dumps(
+                {"ok": True, "imprint": row,
+                 "richness": SENSE_BOX.richness(),
+                 "heart": HEART.brief() if HEART else None}, ensure_ascii=False))
         if u.path != "/say":
             return self._send(404, json.dumps({"err": "no such path"}))
         ip = self.client_address[0]
@@ -952,7 +977,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH, SELF_WORLD
+    global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH, SELF_WORLD, SENSE_BOX
     ap = argparse.ArgumentParser(description="磐石常驻魂 P1+P2")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PANSHI_PORT", "8795")))
@@ -991,6 +1016,7 @@ def main():
     print(f"[panshi] 成长档案已续上: {_n}个快照, 哈希链{'完整' if _ok else f'第{_broken}块断裂'}",
           flush=True)
     SELF_WORLD = douchen_self.SelfWorld(str(STATE_DIR))
+    SENSE_BOX = douchen_senses.Senses(str(STATE_DIR))
     DRIVE = douchen_drive.DriveEngine()
     threading.Thread(target=drive_loop, args=(DRIVE,), daemon=True).start()
     print("[panshi] 内生驱动力已点火、内省器就位, 她不在时我也自己转、自己问自己",
