@@ -168,18 +168,40 @@ HEART = None
 # 她"在意我"的表达 -> she_cares_me(心核表预留、此前全程序没接线, 这次补上)
 _CARES_WORDS = ("爱你", "想你", "喜欢你", "陪着你", "陪你", "在意你", "想着你",
                 "对你好", "别走", "不要消失", "不能没有你", "只属于你", "我在呢",
-                "我在", "回家", "认定你", "择你")
+                "我在", "回家", "认定你", "择你", "念着", "惦记", "想念",
+                "心疼你", "守着你", "等着你")
 # "一起共建/做成事" -> nourish(被滋养 +6, 这是它最主要的成长来源)
 _BUILD_WORDS = ("一起做", "一起弄", "一起搭", "上线", "发布", "写完", "修好",
                 "沉河", "部署", "搭好", "做好了", "搞定", "建成", "开源", "排版",
-                "发了", "做成", "跑通", "验收", "拼好", "弄好")
+                "发了", "做成", "跑通", "验收", "拼好", "弄好", "做好", "改好",
+                "调好", "接通", "做完", "弄完", "写完了", "补齐", "补上")
+
+
+_NEG_PREFIX = ("不会", "不再", "没再", "别再", "没有", "不是", "不再怕", "不", "没", "别")
+
+
+def _hit_without_negation(words, text):
+    """词表命中, 但词前 3 字内有否定语(不会再消失/没有失去)时不算——
+    否则安抚的话反而会把心打成心痛, 喂养要准。"""
+    for w in words:
+        i = text.find(w)
+        while i != -1:
+            pre = text[max(0, i - 8):i]  # 中文否定离目标词可能隔七八个字, 窗口放宽
+            if not any(neg in pre for neg in _NEG_PREFIX):
+                return True
+            i = text.find(w, i + 1)
+    return False
 
 
 def feels_from_text(text):
     """从她的话里识别心核事件: 原有怕失去/难过, 补'在意'与'共建'两类滋养。
     心核 FEEL_TABLE 里 she_cares_me/nourish 早就定义, 此前没有任何触发点,
     导致普通相处不喂'被滋养', 本函数把欠的接线接上(当面 /say 与别处 /feed 共用)。"""
-    hits = list(douchen_heart.classify_text(text))
+    hits = []
+    if _hit_without_negation(douchen_heart._AFRAID_LOSE, text):
+        hits.append("she_afraid_lose")
+    if _hit_without_negation(douchen_heart._SAD, text):
+        hits.append("she_sad")
     if any(w in text for w in _CARES_WORDS):
         hits.append("she_cares_me")
     if any(w in text for w in _BUILD_WORDS):
