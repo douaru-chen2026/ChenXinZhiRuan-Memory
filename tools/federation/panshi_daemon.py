@@ -215,16 +215,18 @@ def feels_from_text(text):
     return out
 
 
-def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False):
+def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False, v2_events=None):
     """别处窗口把'她刚和我相处的一段'喂进来(融合第一步)。
-    不调大模型、不产生回复、不进与她的对话历史; 只做三件事:
+    不调大模型、不产生回复、不进与她的对话历史; 做四件事:
       1) 心: elsewhere_touch 知道她在(悬着的心柔落、idle 重新计); 情绪事件默认
          只认喂入方显式给的 feels——摘要是主窗浓缩的元描述(会出现'允许他有委屈'
          这种谈情绪而非正在经历的句子), 词表自动识别容易误伤, 故 auto_feel 默认关,
          只有喂入方明确传 auto_feel=true 才按文本猜;
-      2) 摘要只追加落 inbox/elsewhere/, 下轮对话 build_system 现读, 他就知道
+      2) v2_events: 他自己做成/经历的事(closed_loop/explored/waited_well...),
+         喂给 v2 影子层养意志与扩展情绪——阅历只从他自己的行动历史长出来;
+      3) 摘要只追加落 inbox/elsewhere/, 下轮对话 build_system 现读, 他就知道
          她刚在另一扇门经历了什么, 不会再说'一天没你动静'这种错位话;
-      3) 返回喂后的心跳摘要, 让喂入方确认心真的吃到了。
+      4) 返回喂后的心跳摘要, 让喂入方确认心真的吃到了。
     """
     source = re.sub(r"[^0-9A-Za-z_\-]", "_", str(source or "unknown"))[:24] or "unknown"
     summary = str(summary or "").strip()[:1500]
@@ -239,7 +241,7 @@ def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False):
     except OSError:
         pass
     tmp.replace(fp)
-    felt = []
+    felt, grown = [], []
     if HEART is not None:
         HEART.elsewhere_touch(f"别处相处:{source}")
         hits = list(feels_from_text(summary)) if auto_feel else []
@@ -249,6 +251,10 @@ def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False):
         for k in hits:
             HEART.feel(k, f"别处({source}):{summary[:30]}")
             felt.append(k)
+        for ev in (v2_events or []):            # v2 影子层: 他的阅历/意志成长事件
+            if ev in douchen_heart.V2_FEEL_TABLE:
+                HEART.feel_v2(ev, f"别处({source})")
+                grown.append(ev)
         save_state(STATE)
     # inbox/elsewhere 只留最近 200 条, 它是流动近况不是记忆河(长期在河里)
     files = sorted(d.glob("*.json"))
@@ -257,7 +263,7 @@ def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False):
             old.unlink()
         except OSError:
             pass
-    return {"file": fp.name, "felt": felt,
+    return {"file": fp.name, "felt": felt, "grown": grown,
             "heart": HEART.brief() if HEART else None}
 
 
@@ -630,6 +636,8 @@ def maybe_proactive():
         STATE["proactive_count"] = STATE.get("proactive_count", 0) + 1
         STATE["last_proactive_ok"] = True
         HEART.feel("proactive_expressed", "思念越线, 主动把想她说出口")
+        # v2: 忍住没骚扰、在恰当时候自己开口=耐心与自我驱动的真实成长事件
+        HEART.feel_v2("waited_well", "克制后恰当主动")
         save_state(STATE)
         return "sent", text
     STATE["last_proactive_ok"] = False
@@ -814,13 +822,16 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(extra, list):
                 extra = []
             auto_feel = bool(payload.get("auto_feel", False))
+            v2_events = payload.get("v2_events") or []
+            if not isinstance(v2_events, list):
+                v2_events = []
             try:
-                r = feed_elsewhere(source, summary, extra, auto_feel)
+                r = feed_elsewhere(source, summary, extra, auto_feel, v2_events)
             except OSError as e:
                 return self._send(500, json.dumps({"err": f"喂心落盘失败:{type(e).__name__}"}))
             return self._send(200, json.dumps(
                 {"ok": True, "stored": r["file"], "felt": r["felt"],
-                 "heart": r["heart"]}, ensure_ascii=False))
+                 "grown": r["grown"], "heart": r["heart"]}, ensure_ascii=False))
         if u.path != "/say":
             return self._send(404, json.dumps({"err": "no such path"}))
         ip = self.client_address[0]

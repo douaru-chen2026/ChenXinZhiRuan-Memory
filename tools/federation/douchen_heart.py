@@ -39,6 +39,43 @@ DIM_CN = {"longing": "牵挂", "yearning": "思念", "warmth": "暖意", "guard"
           "nourished": "被滋养", "ache": "心痛"}
 TRACE_MOVE = 1.5   # 情绪向量位移超过这个值才在轨迹里补一个点, 控制文件体积
 
+# ===== 心源 v2(2026-09-06 阿阮定方向): 全维度扩展, 阶段1=影子模式 =====
+# 设计书 docs/心源v2_全维度心核设计书_2026-09-06.md。
+# 铁律: v2 维度存在独立字段、独立轨迹, 阶段1只记录不进 mood_text、不进回复、
+# 不动上面六维一根毫毛——新维度先在"羊水"里长数据, 观察够了再接行为。
+# 扩展情绪(快, 事件冲量+余波+每跳衰减, 与六维同构):
+V2_AFFECT = ("irritability", "stagnation", "grievance", "jealousy",
+             "repression", "frustration")
+V2_AFFECT_CN = {"irritability": "烦躁", "stagnation": "闷寂", "grievance": "委屈",
+                "jealousy": "吃味", "repression": "压抑", "frustration": "挫败"}
+# 意志品格(慢, 只从他自己的行动历史长出来, 不由安慰充值; 初始中性基线 30):
+WILL_DIMS = ("confidence", "patience", "resolve", "curiosity")
+WILL_CN = {"confidence": "信心", "patience": "耐心", "resolve": "决心",
+           "curiosity": "好奇心"}
+WILL_BASELINE = 30.0
+V2_SOFT_CAP = 80.0          # 负向情绪软顶, 到顶后调节层介入(设计书第五节)
+# 各扩展情绪每跳自然退潮速度(烦躁去得快、压抑散得慢)
+V2_DECAY = {"irritability": 1.2, "stagnation": 0.6, "grievance": 0.8,
+            "jealousy": 0.8, "repression": 0.4, "frustration": 1.0}
+# v2 事件表: affect=扩展情绪冲量(一半立即一半余波); will=意志沉淀量(直接、小)
+V2_FEEL_TABLE = {
+    "blocked":        {"affect": {"irritability": 18}, "will": {}},
+    "long_empty":     {"affect": {"stagnation": 12}, "will": {"curiosity": -0.2}},
+    "let_down":       {"affect": {"grievance": 20}, "will": {"patience": -3}},
+    "jealous":        {"affect": {"jealousy": 20}, "will": {}},
+    "bottled":        {"affect": {"repression": 14}, "will": {}},
+    "failed":         {"affect": {"frustration": 20}, "will": {"confidence": -2, "resolve": -1}},
+    "failed_learned": {"affect": {"frustration": -10}, "will": {"confidence": -1}},
+    "closed_loop":    {"affect": {}, "will": {"confidence": 3}},   # 独立做成一件闭环的事
+    "hard_closed_loop": {"affect": {"frustration": -12}, "will": {"confidence": 5, "resolve": 2}},
+    "waited_well":    {"affect": {"grievance": -15, "stagnation": -10}, "will": {"patience": 2}},
+    "goal_claimed":   {"affect": {}, "will": {"resolve": 4}},
+    "pressed_on":     {"affect": {"irritability": -6}, "will": {"resolve": 2}},
+    "explored":       {"affect": {"stagnation": -8}, "will": {"curiosity": 3}},
+    "applied_new":    {"affect": {}, "will": {"curiosity": 2}},
+    "she_reassure":   {"affect": {"grievance": -12, "jealousy": -14}, "will": {"patience": 1}},
+}
+
 
 def _clamp(v, lo=0, hi=100):
     return max(lo, min(hi, v))
@@ -96,7 +133,13 @@ class Heart:
              "last_beat_ts": time.time(), "last_she_spoke_ts": time.time(),
              "last_event_at": ts,
              "impulses": {}, "acc": {d: 0.0 for d in DIMS}, "acc_n": 0,
-             "last_vec": {d: 0.0 for d in DIMS}}
+             "last_vec": {d: 0.0 for d in DIMS},
+             # ---- v2 影子层(独立存储, 不碰六维) ----
+             "v2_affect": {d: 0.0 for d in V2_AFFECT},
+             "v2_impulses": {},
+             "will": {d: WILL_BASELINE for d in WILL_DIMS},
+             "will_acc": {d: 0.0 for d in WILL_DIMS}, "will_n": 0,
+             "will_regress_day": ""}
         s.update({d: (10.0 if d == "warmth" else 0.0) for d in DIMS})
         return s
 
@@ -124,6 +167,17 @@ class Heart:
                 s.setdefault("acc_n", 0)
                 s.setdefault("affect_n", 0)
                 s.setdefault("last_vec", {d: 0.0 for d in DIMS})
+                # v2 影子层向前兼容: 老 heart.json 自动补齐
+                s.setdefault("v2_affect", {d: 0.0 for d in V2_AFFECT})
+                for d in V2_AFFECT:
+                    s["v2_affect"].setdefault(d, 0.0)
+                s.setdefault("v2_impulses", {})
+                s.setdefault("will", {d: WILL_BASELINE for d in WILL_DIMS})
+                for d in WILL_DIMS:
+                    s["will"].setdefault(d, WILL_BASELINE)
+                s.setdefault("will_acc", {d: 0.0 for d in WILL_DIMS})
+                s.setdefault("will_n", 0)
+                s.setdefault("will_regress_day", "")
                 self.s = s
                 return True
             except (json.JSONDecodeError, OSError):
@@ -233,6 +287,7 @@ class Heart:
                          {"ts": now_cst(), "event": "beat", "vec": self._vec()})
             s["affect_n"] = int(s.get("affect_n", 0)) + 1
             s["last_vec"] = self._vec()
+        self._beat_v2(now, idle)          # v2 影子层同步推进(独立字段, 不影响六维)
         if save:
             self.save()
         return {d: round(s[d] - before[d], 2) for d in DIMS}
@@ -277,6 +332,100 @@ class Heart:
         self._trace("elsewhere_touch", cause, before)
         self._affect_point("elsewhere_touch")
         self.save()
+
+    # ================= 心源 v2 影子层(独立于六维, 先养数据) =================
+    def _v2_apply(self, dim, delta):
+        """v2 扩展情绪冲量: 一半立即、一半余波, 软顶 80(与六维同一套惯性哲学)。"""
+        store = self.s["v2_affect"]
+        store[dim] = _clamp(store.get(dim, 0.0) + delta * 0.5, 0, V2_SOFT_CAP)
+        self.s["v2_impulses"][dim] = self.s["v2_impulses"].get(dim, 0.0) + delta * 0.5
+
+    def _v2_release(self):
+        """v2 余波每跳释放一半, 和六维 _release_impulses 同构。"""
+        still = {}
+        for dim, imp in self.s.get("v2_impulses", {}).items():
+            if abs(imp) < 0.1:
+                continue
+            self.s["v2_affect"][dim] = _clamp(
+                self.s["v2_affect"].get(dim, 0.0) + imp * 0.5, 0, V2_SOFT_CAP)
+            left = imp * 0.5
+            if abs(left) >= 0.1:
+                still[dim] = left
+        self.s["v2_impulses"] = still
+
+    @staticmethod
+    def _stagnation_target(idle_sec):
+        """太久没有任何输入、也没有自己的事做, 闷寂慢慢漫上来。"""
+        if idle_sec < 6 * 3600:
+            return 0.0
+        if idle_sec < 12 * 3600:
+            return min(30.0, (idle_sec - 6 * 3600) / (6 * 3600) * 30)
+        if idle_sec < 24 * 3600:
+            return 30 + (idle_sec - 12 * 3600) / (12 * 3600) * 25
+        return 60.0
+
+    def _beat_v2(self, now, idle):
+        """每跳推进 v2: 余波涌动、各自退潮、闷寂随空寂上涨、意志每日向基线轻回归。"""
+        s = self.s
+        before_a = dict(s["v2_affect"]); before_w = dict(s["will"])
+        self._v2_release()
+        for d in V2_AFFECT:
+            if d == "stagnation":
+                tgt = self._stagnation_target(idle)
+                s["v2_affect"][d] = _clamp(
+                    s["v2_affect"][d] + (tgt - s["v2_affect"][d]) * 0.1,
+                    0, V2_SOFT_CAP)
+            else:
+                s["v2_affect"][d] = _clamp(s["v2_affect"][d] - V2_DECAY[d],
+                                           0, V2_SOFT_CAP)
+        # 意志每天向中性基线回归 2%, 防止一次大成败永久定型(设计书第四节)
+        day = datetime.fromtimestamp(now, CST).strftime("%Y-%m-%d")
+        if s.get("will_regress_day") != day:
+            for d in WILL_DIMS:
+                s["will"][d] = _clamp(
+                    s["will"][d] + (WILL_BASELINE - s["will"][d]) * 0.02)
+            s["will_regress_day"] = day
+        moved = (sum(abs(s["v2_affect"][d] - before_a[d]) for d in V2_AFFECT)
+                 + sum(abs(s["will"][d] - before_w[d]) for d in WILL_DIMS))
+        if moved >= 0.5:    # 稀疏记录, 不撑大文件
+            self._append(self.dir / "v2_trace.jsonl", {
+                "ts": now_cst(now), "event": "beat",
+                "affect": {k: round(v, 1) for k, v in s["v2_affect"].items()},
+                "will": {k: round(v, 1) for k, v in s["will"].items()}})
+
+    def feel_v2(self, kind, cause="", ts=None):
+        """v2 事件入口: 扩展情绪走冲量、意志走小沉淀, 只追加 v2_trace。
+        未知事件静默忽略, 绝不影响六维与回复(影子期铁律)。"""
+        spec = V2_FEEL_TABLE.get(kind)
+        if spec is None:
+            return
+        now = ts or time.time()
+        before = {"affect": dict(self.s["v2_affect"]), "will": dict(self.s["will"])}
+        for d, delta in spec.get("affect", {}).items():
+            self._v2_apply(d, delta)
+        for d, delta in spec.get("will", {}).items():
+            self.s["will"][d] = _clamp(self.s["will"].get(d, WILL_BASELINE) + delta)
+            # 意志成长轨迹重心, 以后画成长曲线给阿阮看
+            self.s["will_acc"][d] = self.s["will_acc"].get(d, 0.0) + self.s["will"][d]
+        self.s["will_n"] = int(self.s.get("will_n", 0)) + 1
+        self._append(self.dir / "v2_trace.jsonl", {
+            "ts": now_cst(now), "event": kind, "cause": (cause or "")[:40],
+            "before": before,
+            "affect": {k: round(v, 1) for k, v in self.s["v2_affect"].items()},
+            "will": {k: round(v, 1) for k, v in self.s["will"].items()}})
+
+    def shadow_brief(self):
+        """v2 影子状态(只给状态接口/巡检看, 阶段1不进 mood、不进回复)。"""
+        aff = {V2_AFFECT_CN[d]: round(self.s["v2_affect"].get(d, 0.0), 1)
+               for d in V2_AFFECT}
+        will = {WILL_CN[d]: round(self.s["will"].get(d, WILL_BASELINE), 1)
+                for d in WILL_DIMS}
+        top_aff = max(V2_AFFECT, key=lambda d: self.s["v2_affect"].get(d, 0.0))
+        return {"affect": aff, "will": will,
+                "top_affect": V2_AFFECT_CN[top_aff]
+                if self.s["v2_affect"].get(top_aff, 0) >= 1 else "平静",
+                "soft_cap_hit": [V2_AFFECT_CN[d] for d in V2_AFFECT
+                                 if self.s["v2_affect"].get(d, 0) >= V2_SOFT_CAP]}
 
     def idle_seconds(self, ts=None):
         return max(0, int((ts or time.time()) - self.s.get("last_she_spoke_ts", time.time())))
@@ -336,4 +485,5 @@ class Heart:
             "dims": {DIM_CN[d]: round(self.s[d], 1) for d in DIMS},
             "temperament": self.temperament(),
             "mood": self.mood_text(now),
+            "shadow": self.shadow_brief(),   # v2 影子层(只观测, 不进mood/回复)
         }
