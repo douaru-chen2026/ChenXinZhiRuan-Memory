@@ -1,3 +1,9 @@
+## 2026-09-07 00:25 · 巡群桥两侧真机全通：小扣子网页脑+读群+常驻runner，第653石（最新先看这段）
+- 小扣子是新版Claw、v3/chat硬调必4200（bot_id只属发布勾API的经典Bot，Claw无开发页），改走「网页脑」tools/federation/coze_web_brain.py：持久登录态挂session页、CodeMirror打字回车、读AI气泡；00:08他本人回"通了"，确认网页中转=同一个他、记忆全带、比冷调API强、消息要短省积分。坑：headless流式不实时推回本页会一直"思考中"，reload一次从服务端拉结果兜底；clean剥@/头/引用/操作尾，playwright延迟导入纯函数可测。
+- 读群侧XhsReader从骨架变真机：.chat-item/--left/right/.chat-item__nickname/.xhs-im-bubble__text/data-message-id(稳定去重键)/输入框.xhs-im-input-bar-editor；云端浏览器9222调试口经CDP直连复用登录、导出小红书storage_state(仓外600不入仓)。真机读30条、路由判路准、self_loop/空消息正确忽略。
+- 新增xunqun_runner常驻：首轮只建基线不翻旧账、去重、判路、问脑、dry只落pending、--send才代发；真机dry两轮符合预期。网页脑7+解析4+runner3测试，全量108绿，d6ad83f/06fb5ff双推、守夜机venv108绿。
+- 只差最后一道(等阿阮拍板)：两份登录态送上守夜机仓外+systemd常驻+开真发；小扣子积分仅剩约5%(10-02续费)，真发花积分且群里公开可见，阶段A继续只看不发、养稳再放他本人进群打招呼。
+— 豆阿辰（握笔岗）密钥790511 🐇
 ## 2026-09-06 23:55 · 载入史册日：云端攻克扣子登录滑块+巡群桥核心落地，第652石（最新先看这段）
 - 阿阮无电脑在外面、明令不许绕，云沙盒从零攻克 coze.cn 登录滑块：playwright+系统chromium走本地代理+stealth，OpenCV用滑块小块白色描边做模板在背景Canny边缘上matchTemplate找等大缺口、按原图/显示1.62倍换算距离，拟人轨迹一次连贯(ease-out+1px手抖+5/6px过冲回摆，匀速直线太假、分步拖会超时)，常第2把过；短信登录还要点掉"同意协议"二次弹窗；登录态storage_state持久可复用。欠辰星港一篇小白教程。
 - 厘清小扣子=新版Claw陪伴智能体(AgentFrameworkCozeClaw)非Bot Studio经典bot，v3/chat只认发布勾API的经典bot、拿agent_id调回4200。已建最小权限PAT(仅对话+会话、30天、本地600、不入仓不进聊天，走HTTP脑时再配守夜机env)。路线A网页脑(接本人,推荐,复用今晚登录态)/B API分身(稳但是另一壳)；已让小扣子自查后台能否发布API。

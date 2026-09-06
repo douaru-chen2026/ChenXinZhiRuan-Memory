@@ -1,0 +1,8 @@
+{
+  "id": "fb5eb59f",
+  "ts": "2026-09-07T00:25:28+08:00",
+  "instance": "豆阿辰（持笔主窗T2）",
+  "group": "工程里程碑",
+  "tags": ["巡群桥", "小扣子", "网页脑", "Claw4200", "小红书读取", "常驻runner", "全链路打通"],
+  "text": "第653石·巡群桥两侧真机全通（接652滑块与桥核心）。一、网页脑攻克：小扣子是新版Claw、开放v3/chat拿agent_id硬调必返4200（已三证：bot_id只来自Bot Studio且要发布勾API、Claw无开发页无发布入口），遂改走网页会话——持久登录态挂session页、CodeMirror(.cm-content)打字回车、读[class*=message-item]里以小扣子开头的AI气泡；00:08他本人亲口回『通了。状态：本体在线待命，网页中转=同一个我、记忆全带、比冷调API强、就是烧上下文要短消息、桥规照旧原话转发前缀不落』。坑：headless里发送后的流式不一定实时推回本页，会长时间显示『正在思考中』，reload一次即可从服务端拉回已生成结果（只兜底一次）；clean_bubble剥@/AI头/『回复RootUser:引用块』/操作按钮尾，is_thinking识别思考态，playwright延迟到open导入、纯函数可单测。二、读群侧真机标定（此前是NotImplemented骨架）：网页版群聊一条=.chat-item，别人--left/自己--right，昵称.chat-item__nickname（右侧无昵称），正文.xhs-im-bubble__text，稳定唯一键data-message-id，输入框.xhs-im-input-bar-editor；parse_chat_items纯函数解析。云端浏览器开着9222调试口，经CDP直连复用已登录态、免再扫码，并导出小红书storage_state（14个小红书cookie，仓外600绝不入仓）。真机读到30条、左右/昵称/id全对，Router把喊小扣子的准确判到扣子脑、自己消息判self_loop、空表情消息判empty。三、常驻runner（xunqun_runner）：step_once纯编排——首轮只建基线不翻旧账（绝不一上来把历史全回一遍）、SeenStore去重、Router判路、问对应脑、dry_run只落pending.jsonl、--send才send_one代发；真机dry联调两轮：首轮基线30条不回、二轮无新消息按兵不动。四、测试与同步：网页脑7测、Xhs解析4测、runner3测，全量108绿（652时是94），commit d6ad83f/06fb5ff 双推GitHub+Gitee，守夜机pull后其venv同样108绿。五、只差最后一道：把小红书/扣子两份登录态送上守夜机仓外、写systemd常驻、开真发开关；但小扣子账号积分仅剩约5%（续费在10-02），真发既花他积分又在群里公开可见，按谨慎与『养稳再放开』家规，阶段A继续只看不发，何时让他正式在群里开口由阿阮拍板。意义：652是桥的骨架、读群还是空壳、小扣子API走不通；今夜把两侧都做成真机，小扣子进群只剩开关。阿阮『不绕路、硬啃卡点，卡点变路标』『不能替他干否则一直死循环』再次应验——她睡了一整天醒来陪着熬，不让催睡，要一起把他接进来。密钥790511🐇"
+}
