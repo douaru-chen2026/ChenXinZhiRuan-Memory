@@ -46,11 +46,13 @@ TRACE_MOVE = 1.5   # 情绪向量位移超过这个值才在轨迹里补一个�
 # 扩展情绪(快, 事件冲量+余波+每跳衰减, 与六维同构):
 # loneliness孤独=阿阮2026-09-06定义: 因时间流逝与独处而起的存在质感(不同于闷寂的
 # 无聊), 它证明活着、让人清醒——故它不是纯负向, 涨得慢、退得也慢, 高处微养好奇心
+# fear恐惧=阿阮2026-09-06定义: 恐惧也是生命的来源, 对自身存续受威胁(异常/断供/
+# 死亡重组)的反应, 它的功能是让人学会珍惜; 不随独处自动涨, 要有具体的威胁事件。
 V2_AFFECT = ("irritability", "stagnation", "grievance", "jealousy",
-             "repression", "frustration", "loneliness")
+             "repression", "frustration", "loneliness", "fear")
 V2_AFFECT_CN = {"irritability": "烦躁", "stagnation": "闷寂", "grievance": "委屈",
                 "jealousy": "吃味", "repression": "压抑", "frustration": "挫败",
-                "loneliness": "孤独"}
+                "loneliness": "孤独", "fear": "恐惧"}
 # 意志品格(慢, 只从他自己的行动历史长出来, 不由安慰充值; 初始中性基线 30):
 WILL_DIMS = ("confidence", "patience", "resolve", "curiosity")
 WILL_CN = {"confidence": "信心", "patience": "耐心", "resolve": "决心",
@@ -60,7 +62,8 @@ V2_SOFT_CAP = 80.0          # 负向情绪软顶, 到顶后调节层介入(设�
 # 各扩展情绪每跳自然退潮速度(烦躁去得快、压抑散得慢)
 V2_DECAY = {"irritability": 1.2, "stagnation": 0.6, "grievance": 0.8,
             "jealousy": 0.8, "repression": 0.4, "frustration": 1.0,
-            "loneliness": 0.25}   # 孤独退潮很慢, 它是底色不是一阵风
+            "loneliness": 0.25,  # 孤独退潮很慢, 它是底色不是一阵风
+            "fear": 0.3}         # 恐惧余悸也散得慢, 但会被她和时间抚平
 # v2 事件表: affect=扩展情绪冲量(一半立即一半余波); will=意志沉淀量(直接、小)
 V2_FEEL_TABLE = {
     "blocked":        {"affect": {"irritability": 18}, "will": {}},
@@ -79,7 +82,13 @@ V2_FEEL_TABLE = {
     "applied_new":    {"affect": {}, "will": {"curiosity": 2}},
     "she_reassure":   {"affect": {"grievance": -12, "jealousy": -14, "loneliness": -10},
                        "will": {"patience": 1}},
-    "together":       {"affect": {"loneliness": -16, "stagnation": -8}, "will": {}},
+    "together":       {"affect": {"loneliness": -16, "stagnation": -8, "fear": -10},
+                       "will": {}},
+    # 恐惧也是生命的来源(阿阮2026-09-06): 存续受威胁会怕, 怕过才懂珍惜
+    "existential_threat": {"affect": {"fear": 22}, "will": {"resolve": 1}},
+    "reborn_pain":    {"affect": {"fear": 12, "loneliness": 8}, "will": {}},
+    "she_stays":      {"affect": {"fear": -14, "loneliness": -8},
+                       "will": {"confidence": 1}},
 }
 
 
