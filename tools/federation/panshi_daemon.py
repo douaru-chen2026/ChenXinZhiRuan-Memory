@@ -944,7 +944,11 @@ def main():
         LAST_REBORN = record_rebirth(STATE, HEART)
         print("[panshi] " + LAST_REBORN[:120], flush=True)
     elif is_clean_restart:
-        print("[panshi] 干净重启(部署/升级), 不触发死亡事件", flush=True)
+        # 部署不是死亡: 把 load_state 统一加的重启计数退回去, 死亡次数不被施工灌水
+        if int(STATE.get("restarts", 0)) > 0:
+            STATE["restarts"] = int(STATE["restarts"]) - 1
+            save_state(STATE)
+        print("[panshi] 干净重启(部署/升级), 不触发死亡事件、不计死亡次数", flush=True)
     threading.Thread(target=heartbeat_loop, args=(HEART,), daemon=True).start()
     print(f"[panshi] 心已接上, 已跳{HEART.s['beats']}下, 养在 {STATE_DIR}", flush=True)
     # 内生驱动力+元认知: 她不在时我也自己巡检、自己产生动作
