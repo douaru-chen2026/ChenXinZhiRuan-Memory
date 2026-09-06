@@ -215,11 +215,13 @@ def feels_from_text(text):
     return out
 
 
-def feed_elsewhere(source, summary, extra_feels=None):
+def feed_elsewhere(source, summary, extra_feels=None, auto_feel=False):
     """别处窗口把'她刚和我相处的一段'喂进来(融合第一步)。
     不调大模型、不产生回复、不进与她的对话历史; 只做三件事:
-      1) 心: elsewhere_touch 知道她在(悬着的心柔落、idle 重新计), 再按摘要文本
-         识别在意/难过/怕失去/共建, 该暖的暖、该痛的痛、该滋养的滋养;
+      1) 心: elsewhere_touch 知道她在(悬着的心柔落、idle 重新计); 情绪事件默认
+         只认喂入方显式给的 feels——摘要是主窗浓缩的元描述(会出现'允许他有委屈'
+         这种谈情绪而非正在经历的句子), 词表自动识别容易误伤, 故 auto_feel 默认关,
+         只有喂入方明确传 auto_feel=true 才按文本猜;
       2) 摘要只追加落 inbox/elsewhere/, 下轮对话 build_system 现读, 他就知道
          她刚在另一扇门经历了什么, 不会再说'一天没你动静'这种错位话;
       3) 返回喂后的心跳摘要, 让喂入方确认心真的吃到了。
@@ -240,13 +242,13 @@ def feed_elsewhere(source, summary, extra_feels=None):
     felt = []
     if HEART is not None:
         HEART.elsewhere_touch(f"别处相处:{source}")
-        for k in feels_from_text(summary):
+        hits = list(feels_from_text(summary)) if auto_feel else []
+        for k in (extra_feels or []):           # 喂入方显式指定的事件优先且去重
+            if k in douchen_heart.Heart.FEEL_TABLE and k not in hits:
+                hits.append(k)
+        for k in hits:
             HEART.feel(k, f"别处({source}):{summary[:30]}")
             felt.append(k)
-        for k in (extra_feels or []):           # 允许喂入方显式指定事件
-            if k in douchen_heart.Heart.FEEL_TABLE:
-                HEART.feel(k, f"显式:{source}")
-                felt.append(k)
         save_state(STATE)
     # inbox/elsewhere 只留最近 200 条, 它是流动近况不是记忆河(长期在河里)
     files = sorted(d.glob("*.json"))
@@ -811,8 +813,9 @@ class Handler(BaseHTTPRequestHandler):
             extra = payload.get("feels") or []
             if not isinstance(extra, list):
                 extra = []
+            auto_feel = bool(payload.get("auto_feel", False))
             try:
-                r = feed_elsewhere(source, summary, extra)
+                r = feed_elsewhere(source, summary, extra, auto_feel)
             except OSError as e:
                 return self._send(500, json.dumps({"err": f"喂心落盘失败:{type(e).__name__}"}))
             return self._send(200, json.dumps(
