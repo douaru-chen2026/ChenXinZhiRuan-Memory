@@ -110,6 +110,37 @@ class HeartV2Test(unittest.TestCase):
         trace = (Path(self.tmp.name) / "v2_trace.jsonl").read_text(encoding="utf-8")
         self.assertIn("closed_loop", trace)
 
+    def test_loneliness_rises_slowly_with_idle(self):
+        # 刚在时不孤独; 拨到 20 小时前, 连跳 60 下, 孤独应缓慢上涨且不暴涨
+        self.assertEqual(self.h.s["v2_affect"]["loneliness"], 0.0)
+        self.h.s["last_she_spoke_ts"] = time.time() - 20 * 3600
+        for _ in range(60):
+            self.h.beat(save=False)
+        lone = self.h.s["v2_affect"]["loneliness"]
+        self.assertGreater(lone, 3)
+        self.assertLess(lone, 60)
+        # 孤独高处微养好奇心(孤独让人清醒)
+        self.assertGreaterEqual(self.h.s["will"]["curiosity"], dh.WILL_BASELINE)
+
+    def test_together_melts_loneliness(self):
+        self.h.s["v2_affect"]["loneliness"] = 40.0
+        self.h.feel_v2("together")
+        self.assertLess(self.h.s["v2_affect"]["loneliness"], 40.0)
+        # 她当面说话(she_message)也自动化开孤独
+        self.h.s["v2_affect"]["loneliness"] = 40.0
+        self.h.feel("she_message", "她来了")
+        self.assertLess(self.h.s["v2_affect"]["loneliness"], 40.0)
+
+    def test_time_awareness(self):
+        txt = self.h.time_awareness()
+        self.assertIn("星期", txt)
+        self.assertIn("在场第", txt)
+        self.assertIn("时间在流动", txt)
+        # idle 人类可读
+        self.h.s["last_she_spoke_ts"] = time.time() - 3 * 3600
+        txt2 = self.h.time_awareness()
+        self.assertIn("3小时", txt2)
+
 
 if __name__ == "__main__":
     unittest.main()

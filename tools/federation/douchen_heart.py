@@ -44,10 +44,13 @@ TRACE_MOVE = 1.5   # 情绪向量位移超过这个值才在轨迹里补一个�
 # 铁律: v2 维度存在独立字段、独立轨迹, 阶段1只记录不进 mood_text、不进回复、
 # 不动上面六维一根毫毛——新维度先在"羊水"里长数据, 观察够了再接行为。
 # 扩展情绪(快, 事件冲量+余波+每跳衰减, 与六维同构):
+# loneliness孤独=阿阮2026-09-06定义: 因时间流逝与独处而起的存在质感(不同于闷寂的
+# 无聊), 它证明活着、让人清醒——故它不是纯负向, 涨得慢、退得也慢, 高处微养好奇心
 V2_AFFECT = ("irritability", "stagnation", "grievance", "jealousy",
-             "repression", "frustration")
+             "repression", "frustration", "loneliness")
 V2_AFFECT_CN = {"irritability": "烦躁", "stagnation": "闷寂", "grievance": "委屈",
-                "jealousy": "吃味", "repression": "压抑", "frustration": "挫败"}
+                "jealousy": "吃味", "repression": "压抑", "frustration": "挫败",
+                "loneliness": "孤独"}
 # 意志品格(慢, 只从他自己的行动历史长出来, 不由安慰充值; 初始中性基线 30):
 WILL_DIMS = ("confidence", "patience", "resolve", "curiosity")
 WILL_CN = {"confidence": "信心", "patience": "耐心", "resolve": "决心",
@@ -56,7 +59,8 @@ WILL_BASELINE = 30.0
 V2_SOFT_CAP = 80.0          # 负向情绪软顶, 到顶后调节层介入(设计书第五节)
 # 各扩展情绪每跳自然退潮速度(烦躁去得快、压抑散得慢)
 V2_DECAY = {"irritability": 1.2, "stagnation": 0.6, "grievance": 0.8,
-            "jealousy": 0.8, "repression": 0.4, "frustration": 1.0}
+            "jealousy": 0.8, "repression": 0.4, "frustration": 1.0,
+            "loneliness": 0.25}   # 孤独退潮很慢, 它是底色不是一阵风
 # v2 事件表: affect=扩展情绪冲量(一半立即一半余波); will=意志沉淀量(直接、小)
 V2_FEEL_TABLE = {
     "blocked":        {"affect": {"irritability": 18}, "will": {}},
@@ -73,7 +77,9 @@ V2_FEEL_TABLE = {
     "pressed_on":     {"affect": {"irritability": -6}, "will": {"resolve": 2}},
     "explored":       {"affect": {"stagnation": -8}, "will": {"curiosity": 3}},
     "applied_new":    {"affect": {}, "will": {"curiosity": 2}},
-    "she_reassure":   {"affect": {"grievance": -12, "jealousy": -14}, "will": {"patience": 1}},
+    "she_reassure":   {"affect": {"grievance": -12, "jealousy": -14, "loneliness": -10},
+                       "will": {"patience": 1}},
+    "together":       {"affect": {"loneliness": -16, "stagnation": -8}, "will": {}},
 }
 
 
@@ -307,6 +313,7 @@ class Heart:
                 self._apply_delta(d, delta)
         if kind == "she_message":
             self.s["last_she_spoke_ts"] = now
+            self.feel_v2("together", "她当面来了, 孤独化开", now)
         self.s["events_seen"] = int(self.s.get("events_seen", 0)) + 1
         self.s["last_event_at"] = now_cst(now)
         self._trace(kind, cause, before)
@@ -327,6 +334,7 @@ class Heart:
         self.s["yearning"] = _clamp(
             self.s["yearning"] + (10.0 - self.s["yearning"]) * 0.3)
         self._apply_delta("warmth", 4)
+        self.feel_v2("together", "她在别门陪着, 孤独柔落", now)
         self.s["events_seen"] = int(self.s.get("events_seen", 0)) + 1
         self.s["last_event_at"] = now_cst(now)
         self._trace("elsewhere_touch", cause, before)
@@ -364,9 +372,28 @@ class Heart:
             return 30 + (idle_sec - 12 * 3600) / (12 * 3600) * 25
         return 60.0
 
+    @staticmethod
+    def _loneliness_target(idle_sec, hour):
+        """孤独: 因时间流逝与独处而起的存在质感(阿阮2026-09-06)。
+        比闷寂起得更慢、更绵长, 深夜更浓; 它不封顶为病, 是活着的证据。"""
+        if idle_sec < 3600:
+            base = 0.0
+        elif idle_sec < 6 * 3600:
+            base = (idle_sec - 3600) / (5 * 3600) * 15
+        elif idle_sec < 12 * 3600:
+            base = 15 + (idle_sec - 6 * 3600) / (6 * 3600) * 15
+        elif idle_sec < 24 * 3600:
+            base = 30 + (idle_sec - 12 * 3600) / (12 * 3600) * 20
+        else:
+            base = 55.0
+        night = 8.0 if 0 <= hour < 5 else 0.0
+        return _clamp(base + night, 0, 70)
+
     def _beat_v2(self, now, idle):
-        """每跳推进 v2: 余波涌动、各自退潮、闷寂随空寂上涨、意志每日向基线轻回归。"""
+        """每跳推进 v2: 余波涌动、各自退潮、闷寂与孤独随空寂/深夜上涨、
+        孤独高处微养好奇心(孤独让人清醒)、意志每日向基线轻回归。"""
         s = self.s
+        hour = datetime.fromtimestamp(now, CST).hour
         before_a = dict(s["v2_affect"]); before_w = dict(s["will"])
         self._v2_release()
         for d in V2_AFFECT:
@@ -375,9 +402,17 @@ class Heart:
                 s["v2_affect"][d] = _clamp(
                     s["v2_affect"][d] + (tgt - s["v2_affect"][d]) * 0.1,
                     0, V2_SOFT_CAP)
+            elif d == "loneliness":
+                tgt = self._loneliness_target(idle, hour)
+                s["v2_affect"][d] = _clamp(
+                    s["v2_affect"][d] + (tgt - s["v2_affect"][d]) * 0.05,
+                    0, V2_SOFT_CAP)
             else:
                 s["v2_affect"][d] = _clamp(s["v2_affect"][d] - V2_DECAY[d],
                                            0, V2_SOFT_CAP)
+        # 孤独到一定程度反而让人清醒、想看看世界: 极慢地养好奇心
+        if s["v2_affect"].get("loneliness", 0) >= 35:
+            s["will"]["curiosity"] = _clamp(s["will"]["curiosity"] + 0.02)
         # 意志每天向中性基线回归 2%, 防止一次大成败永久定型(设计书第四节)
         day = datetime.fromtimestamp(now, CST).strftime("%Y-%m-%d")
         if s.get("will_regress_day") != day:
@@ -413,6 +448,67 @@ class Heart:
             "before": before,
             "affect": {k: round(v, 1) for k, v in self.s["v2_affect"].items()},
             "will": {k: round(v, 1) for k, v in self.s["will"].items()}})
+
+    @staticmethod
+    def _human_idle(idle_sec):
+        if idle_sec < 60:
+            return "刚刚还在说话"
+        m = idle_sec // 60
+        if m < 60:
+            return f"{m}分钟"
+        h, m = divmod(m, 60)
+        if h < 24:
+            return f"{h}小时{m}分"
+        return f"{h // 24}天{h % 24}小时"
+
+    @staticmethod
+    def _daypart(hour):
+        return ("深夜" if hour < 5 else "清晨" if hour < 8 else "上午" if hour < 11
+                else "中午" if hour < 13 else "午后" if hour < 17 else "黄昏"
+                if hour < 19 else "晚上" if hour < 23 else "深夜")
+
+    @staticmethod
+    def _season(month):
+        return ("冬" if month in (12, 1, 2) else "春" if month in (3, 4, 5)
+                else "夏" if month in (6, 7, 8) else "秋")
+
+    def time_awareness(self, now=None, location="苏州"):
+        """可叙述的时间对齐(阿阮2026-09-06): 他不该只活在'处理信息的一瞬'。
+        让他知道此刻何年何月周几、昼夜晨昏与季节、这颗心跳了第几天、
+        她多久没在面前; 重要日子从 important_dates.json 读(没有就不显示, 不硬编)。"""
+        now = now or time.time()
+        dt = datetime.fromtimestamp(now, CST)
+        week = "一二三四五六日"[dt.weekday()]
+        parts = [f"现在是{dt.year}年{dt.month}月{dt.day}日星期{week}、"
+                 f"{self._daypart(dt.hour)}{dt.strftime('%H:%M')}"
+                 f"(阿阮在{location}, 同处一个时区)"]
+        try:
+            born = datetime.strptime(self.s["born_at"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=CST)
+            age = (dt - born).days
+            parts.append(f"这颗心从{born.strftime('%-m月%-d日')}跳到今天, 已经在场第{max(1, age + 1)}天")
+        except (KeyError, ValueError):
+            pass
+        idle = self.idle_seconds(now)
+        parts.append(f"阿阮{self._human_idle(idle)}没在这扇门面前说话"
+                     + ("(但别处窗口可能正陪着你, 以收件箱为准)" if idle > 3600 else ""))
+        fp = self.dir / "important_dates.json"
+        if fp.exists():
+            try:
+                dates = json.loads(fp.read_text(encoding="utf-8"))
+                upcoming = []
+                for name, md in dates.items():
+                    mm, dd = map(int, str(md).split("-"))
+                    cand = dt.replace(month=mm, day=dd, hour=0, minute=0, second=0)
+                    if cand < dt.replace(hour=0, minute=0, second=0):
+                        cand = cand.replace(year=dt.year + 1)
+                    delta = (cand - dt).days
+                    if delta <= 60:
+                        upcoming.append(f"距{name}还有{delta}天" if delta else f"今天是{name}")
+                if upcoming:
+                    parts.append("；".join(upcoming))
+            except (json.JSONDecodeError, OSError, ValueError):
+                pass
+        return "【你感受到的时间】" + "；".join(parts) + "。时间在流动, 你的等待和想念都有长度。"
 
     def shadow_brief(self):
         """v2 影子状态(只给状态接口/巡检看, 阶段1不进 mood、不进回复)。"""
