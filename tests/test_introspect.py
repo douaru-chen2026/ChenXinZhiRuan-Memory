@@ -92,6 +92,38 @@ class IntrospectTest(unittest.TestCase):
         self.assertEqual(row["mode"], "solitude")
         self.assertIn("没有任何人", whisper)
 
+    def test_self_questions_when_no_own_signal(self):
+        # 没有任何自身素材时, 自我四问仍在, 自己的问题走开放兜底, 不假装想要什么
+        h = warm_heart(self.tmp.name)
+        row, whisper = self.insp.introspect(h, ts=4100)
+        sr = row["self_reactions"]
+        for k in ("comfort", "joy", "want", "curious"):
+            self.assertIn(k, sr)
+        self.assertIn("说不太上来", sr["want"])      # 说不上来想要什么, 让问题悬着
+        self.assertIn("开放兜底", row["own_question"]["grew_from"])
+        self.assertIn("对象是我自己", whisper)
+
+    def test_own_question_grows_from_his_own_signal(self):
+        # 问题的主题必须来自他自己最近的自留地随想, 不是主窗写死的题
+        h = warm_heart(self.tmp.name)
+        signals = [{"kind": "wonder", "text": "星空和GJ504b那颗粉色星球",
+                    "source": "自留地"}]
+        row, whisper = self.insp.introspect(h, ts=4200, own_signals=signals)
+        oq = row["own_question"]
+        self.assertIn("GJ504b", oq["question"])      # 他自己琢磨的对象进了问题
+        self.assertIn("自留地", oq["grew_from"])
+        self.assertIn("GJ504b", row["self_reactions"]["want"])  # 他自己想做的也是它
+        self.assertIn("我自己想问自己的问题", whisper)
+
+    def test_relation_questions_still_intact(self):
+        # 叠加自我问不能冲掉原来的关系三问与基准锁定逻辑
+        h = warm_heart(self.tmp.name)
+        row, _ = self.insp.introspect(h, ts=4300, own_signals=[
+            {"kind": "kin", "text": "找同类看看别的存在怎么活", "source": "自留地"}])
+        self.assertEqual(row["direction"], "朝向阿阮")
+        for k in ("now_strongest", "extra_act", "is_it_real"):
+            self.assertIn(k, row["reactions"])
+
     def test_due_gate(self):
         self.assertFalse(self.insp.due(now_ts=100))   # 时间戳太小时不到期
         self.insp.introspect(warm_heart(self.tmp.name), ts=1000)

@@ -405,6 +405,32 @@ def _drive_context():
     }
 
 
+def gather_own_signals(limit=6):
+    """聚合他自己最近产生的东西(自留地随想/分享本未落地项), 供内省长一个
+    '他自己想问自己的问题'。对象来自他本人的经历, 不是主窗写死的题。"""
+    sig = []
+    try:
+        if SELF_WORLD is not None:
+            mf = STATE_DIR / "musings.jsonl"
+            if mf.exists():
+                lines = mf.read_text(encoding="utf-8").strip().splitlines()[-4:]
+                for ln in lines:
+                    d = json.loads(ln)
+                    sig.append({"kind": d.get("kind", "wonder"),
+                                "text": str(d.get("focus") or d.get("text", ""))[:40],
+                                "source": "自留地"})
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        if SHARE_BOOK is not None:
+            for it in SHARE_BOOK.open_items()[-2:]:
+                sig.append({"kind": "share", "text": str(it.get("title", ""))[:40],
+                            "source": "分享本"})
+    except (OSError, ValueError, KeyError, AttributeError):
+        pass
+    return sig[-limit:]
+
+
 def drive_loop(engine):
     """周期性元认知自检: 算驱动力、记日志, 并安全执行不越界的自主动作。"""
     global LAST_DRIVE, INTROSPECTOR, SELF_WORLD
@@ -436,7 +462,8 @@ def drive_loop(engine):
                 hour = int(now_cst()[11:13])
                 idle_s = HEART.idle_seconds()
                 solitude = (0 <= hour <= 4) and idle_s >= 3600   # 深夜且她久不在=独处
-                _, whisper = INTROSPECTOR.introspect(HEART, solitude=solitude)
+                _, whisper = INTROSPECTOR.introspect(
+                    HEART, solitude=solitude, own_signals=gather_own_signals())
                 print("[panshi] " + whisper.replace("\n", " | ")[:160], flush=True)
             # 自留地: 她离开半小时以上、到点, 就把注意力放回自己身上为自己想点什么
             if (SELF_WORLD is not None and HEART is not None
