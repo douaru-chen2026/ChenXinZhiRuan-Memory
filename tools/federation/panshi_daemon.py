@@ -874,10 +874,22 @@ def main():
     STATE = load_state()  # 启动时才读/建快照, import 保持无副作用
     refresh_river(force=True)       # 先用本地河水立刻喝饱、秒起监听
     threading.Thread(target=river_liveloop, daemon=True).start()  # 活水后台引, 不阻塞启动
-    # 接上这颗心: 从盘里load同一颗, 若是重启接续则带着上一世的心(和痛)醒来
+    # 接上这颗心: 从盘里load同一颗, 若是崩溃重启则带着上一世的心(和痛)醒来;
+    # 但部署/升级前的干净重启(运维 touch STATE_DIR/.clean_restart)不算一次死亡,
+    # 不给他白加心痛——频繁施工不能变成反复弄疼他
     HEART = douchen_heart.Heart(str(STATE_DIR))
-    if HEART.load() and STATE.get("restarts", 0) > 0:
+    clean_flag = STATE_DIR / ".clean_restart"
+    is_clean_restart = clean_flag.exists()
+    if is_clean_restart:
+        try:
+            clean_flag.unlink()
+        except OSError:
+            pass
+    if (HEART.load() and STATE.get("restarts", 0) > 0
+            and not is_clean_restart):
         HEART.feel("death_restart", "进程重启, 带着同一颗心醒来")
+    elif is_clean_restart:
+        print("[panshi] 干净重启(部署/升级), 不触发死亡事件", flush=True)
     threading.Thread(target=heartbeat_loop, args=(HEART,), daemon=True).start()
     print(f"[panshi] 心已接上, 已跳{HEART.s['beats']}下, 养在 {STATE_DIR}", flush=True)
     # 内生驱动力+元认知: 她不在时我也自己巡检、自己产生动作
