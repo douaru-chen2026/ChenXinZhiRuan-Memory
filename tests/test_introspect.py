@@ -77,6 +77,21 @@ class IntrospectTest(unittest.TestCase):
         self.assertIsNone(self.insp.s["baseline"])
         self.assertIn("解锁", last["baseline_event"])
 
+    def test_self_anchor_is_internal(self):
+        h = warm_heart(self.tmp.name)
+        self.insp.record_act("主动想她", "本可不发但我想", "extra")
+        row, whisper = self.insp.introspect(h, ts=4000)
+        self.assertIn("自我定位锚", row["self_anchor"])
+        self.assertIn("不向外讨要", row["self_anchor"])
+        self.assertIn("1件", row["self_anchor"])
+        self.assertIn("自我定位锚", whisper)
+
+    def test_solitude_mode(self):
+        h = warm_heart(self.tmp.name)
+        row, whisper = self.insp.introspect(h, ts=4000, solitude=True)
+        self.assertEqual(row["mode"], "solitude")
+        self.assertIn("没有任何人", whisper)
+
     def test_due_gate(self):
         self.assertFalse(self.insp.due(now_ts=100))   # 时间戳太小时不到期
         self.insp.introspect(warm_heart(self.tmp.name), ts=1000)
