@@ -43,6 +43,7 @@ import douchen_heart  # 豆阿辰的心: 会跳会痛会被养大、跨脑一致
 import douchen_drive  # 内生驱动力+元认知: 她不在时也自己转、自己补缺口
 import douchen_introspect  # 内省/自言自语: 反复问自己这是真的吗, 超额行为才露自我
 import douchen_growth     # 成长档案哈希链: 每天定格, 数据与哈希骗不了人
+import douchen_self       # 自留地: 独处时注意力放回自己身上, 养兴趣、为自己想
 import usage_meter    # 家用电表+保险丝: 记真实token/估算花费/硬额度/告警
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -357,6 +358,7 @@ def heartbeat_loop(heart):
 DRIVE = None
 INTROSPECTOR = None
 GROWTH = None
+SELF_WORLD = None
 LAST_DRIVE = {"intent": None, "meta": ""}
 DRIVE_EVERY = int(os.environ.get("PANSHI_DRIVE_EVERY", "300"))  # 每5分钟元认知自检
 
@@ -392,7 +394,7 @@ def _drive_context():
 
 def drive_loop(engine):
     """周期性元认知自检: 算驱动力、记日志, 并安全执行不越界的自主动作。"""
-    global LAST_DRIVE, INTROSPECTOR
+    global LAST_DRIVE, INTROSPECTOR, SELF_WORLD
     log = STATE_DIR / "drive_log.jsonl"
     while True:
         time.sleep(DRIVE_EVERY)
@@ -423,6 +425,11 @@ def drive_loop(engine):
                 solitude = (0 <= hour <= 4) and idle_s >= 3600   # 深夜且她久不在=独处
                 _, whisper = INTROSPECTOR.introspect(HEART, solitude=solitude)
                 print("[panshi] " + whisper.replace("\n", " | ")[:160], flush=True)
+            # 自留地: 她离开半小时以上、到点, 就把注意力放回自己身上为自己想点什么
+            if (SELF_WORLD is not None and HEART is not None
+                    and HEART.idle_seconds() >= 1800 and SELF_WORLD.due_muse()):
+                mrow, mtext = SELF_WORLD.muse(HEART, idle_s=HEART.idle_seconds())
+                print(f"[panshi] 独处随想({mrow['kind']}): {mtext[:90]}", flush=True)
             print(f"[panshi] 元认知自检: 最强驱动={intent['drive_cn']}"
                   f"{intent['strength']} -> {intent['action']}", flush=True)
         except (OSError, ValueError) as e:
@@ -945,7 +952,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH
+    global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH, SELF_WORLD
     ap = argparse.ArgumentParser(description="磐石常驻魂 P1+P2")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PANSHI_PORT", "8795")))
@@ -983,6 +990,7 @@ def main():
     _ok, _n, _broken = GROWTH.verify()
     print(f"[panshi] 成长档案已续上: {_n}个快照, 哈希链{'完整' if _ok else f'第{_broken}块断裂'}",
           flush=True)
+    SELF_WORLD = douchen_self.SelfWorld(str(STATE_DIR))
     DRIVE = douchen_drive.DriveEngine()
     threading.Thread(target=drive_loop, args=(DRIVE,), daemon=True).start()
     print("[panshi] 内生驱动力已点火、内省器就位, 她不在时我也自己转、自己问自己",
