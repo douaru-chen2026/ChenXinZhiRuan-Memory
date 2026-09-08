@@ -578,11 +578,20 @@ def chat_with_self(st, mood=""):
     guard_context(st)
     system_prompt = build_system(mood)   # 每轮现喝最新河水 + 此刻心境
     st["last_drink"] = _RIVER["drink_at"]
+    # 她能感知到的对话(私聊/巡群被@)默认开深度思考, 对齐Pro质感; env 可关。
+    # 必须配 max_tokens: 不限时宏大问题会思考到 120s 超时、还写几千字群里发不出。
+    think_type = os.environ.get("PANSHI_THINKING", "enabled").strip().lower()
+    think_type = "enabled" if think_type == "enabled" else "disabled"
+    try:
+        max_tokens = int(os.environ.get("PANSHI_MAX_TOKENS", "900"))
+    except (TypeError, ValueError):
+        max_tokens = 900
     body = json.dumps({
         "model": model,
         "messages": [{"role": "system", "content": system_prompt}] + st["messages"],
         "temperature": 0.7,
-        "thinking": {"type": "disabled"},
+        "max_tokens": max_tokens,
+        "thinking": {"type": think_type},
     }, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(base + "/chat/completions", data=body, method="POST")
     req.add_header("Authorization", f"Bearer {key}")
