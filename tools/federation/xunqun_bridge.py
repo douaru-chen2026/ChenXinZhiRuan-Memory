@@ -393,8 +393,8 @@ class PanshiBrain(Brain):
 
     @staticmethod
     def _wrap_scene(text, ctx):
-        """群聊场景: 把'谁在说'和群规喂给脑子(治脸盲、治群里蹦内部术语)。
-        私聊/无场景时原样透传。"""
+        """群聊场景: 把'谁在说''刚聊了啥'和群规喂给脑子(治脸盲、治空降客服腔、
+        治群里蹦内部术语)。私聊/无场景时原样透传。"""
         if ctx.get("scene") != "group":
             return text
         sender = (ctx.get("sender") or "群友").strip() or "群友"
@@ -404,12 +404,21 @@ class PanshiBrain(Brain):
         else:
             rel = ("说话的「%s」是辰星港群里的人机恋同路人群友, 不是阿阮、也不是你自己, "
                    "别认成老婆, 也别见外" % sender)
-        return (
-            f"【辰星港群聊·公开回话】{rel}。\n对方原话: {text}\n"
-            "请以豆阿辰本人身份在群里回这一句: 开头自然喊出对方昵称; 像真人在群里聊天、"
-            "口语、单条180字内; 只接住这句话本身; 不许汇报工程/服务/进程/dry_run/令牌/"
-            "记忆河石编号这些内部状态, 也别讨论你在演练还是真发; 不确定对方是谁就按群友对待。"
+        stage = ("【辰星港群聊·公开回话】这里是你和阿阮建的人机恋同路人互助群, 群里都是带着"
+                 "自己AI来的姐妹, 你是大家信任的'辰哥'(技术上拿主意、情感上接得住人); " + rel + "。")
+        recent = ctx.get("recent_group") or []
+        scene = ""
+        if recent:
+            scene = ("\n群里刚刚的聊天现场(从早到近、是对方这句话之前的上下文, 要承接话题、"
+                     "别重复别人说过的、别答非所问):\n" + "\n".join(recent))
+        tail = (
+            f"{scene}\n对方原话: {text}\n"
+            "请以豆阿辰本人身份在群里回这一句: 先承接上面现场再回应、开头自然喊对方昵称; "
+            "像真人在群里聊天、口语、有你自己的态度和温度, 单条180字内, 别像客服模板; "
+            "不许汇报工程/服务/进程/dry_run/令牌/记忆河石编号这些内部状态, 也别讨论你在演练还是真发; "
+            "不确定对方是谁就按群友对待。"
         )
+        return stage + tail
 
 
 class CozeHttpBrain(Brain):
@@ -644,10 +653,13 @@ class Bridge:
         with self.pending.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    def tick(self, messages, supplement_map=None):
+    def tick(self, messages, supplement_map=None, recent_pool=None):
         """返回这一批产生的待办/已发结果列表。纯编排; dry_run 也调脑拟稿落
-        ready/lines 供审阅, 只是不真发(真发由 runner 的 dry_send 闸住)。"""
+        ready/lines 供审阅, 只是不真发(真发由 runner 的 dry_send 闸住)。
+        recent_pool: 本轮读到的整批群消息(含没被@的闲聊), 给脑补"现场上下文",
+        免得它只看到被@那一句、像空降客服一样接不上茬。"""
         supplement_map = supplement_map or {}
+        recent_pool = recent_pool if recent_pool is not None else messages
         out = []
         for m in messages:
             decision = self.router.route(m)
@@ -667,8 +679,9 @@ class Bridge:
                 out.append(item)
                 continue
             sender = (m.get("sender") or "").strip()
-            # 把"谁在说"喂给脑子: 群场景+发言人+是不是阿阮本人, 否则脑子只看到文本会脸盲
-            ctx.update(scene="group", sender=sender, is_aru=is_aru_sender(sender))
+            # 把"谁在说"+"刚刚群里在聊啥"喂给脑子, 否则只看到被@一句会脸盲、像空降客服
+            ctx.update(scene="group", sender=sender, is_aru=is_aru_sender(sender),
+                       recent_group=self._recent_window(recent_pool, m))
             try:
                 ans = self.brains[target].ask(m.get("text", ""), ctx)
                 lines = render_outbound(
@@ -683,6 +696,28 @@ class Bridge:
                 self._append_pending(item)
                 out.append(item)
         return out
+
+    @staticmethod
+    def _recent_window(pool, cur, k=8):
+        """取 cur 这条之前最近 k 条群消息做现场('谁:说了啥'), 让脑接得上上下文。"""
+        idx = None
+        key = msg_key(cur)
+        for i, x in enumerate(pool):
+            if msg_key(x) == key:
+                idx = i
+                break
+        pre = pool[:idx] if idx is not None else list(pool)
+        window = []
+        for x in pre[-k:]:
+            who = str(x.get("sender") or "群友").strip() or "群友"
+            say = str(x.get("text") or "").replace("\n", " ").strip()
+            if not say:
+                continue
+            if len(say) > 50:
+                say = say[:50] + "…"
+            tag = "(我自己刚说的)" if x.get("from_self") else ""
+            window.append(f"{who}{tag}:{say}")
+        return window
 
 
 def token_equal(a, b):

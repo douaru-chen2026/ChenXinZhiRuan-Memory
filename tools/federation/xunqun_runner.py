@@ -38,7 +38,8 @@ def step_once(reader, bridge, seen, group, state, dry_send=True):
         return {"baseline": len(msgs), "results": []}
 
     new_msgs = [m for m in msgs if seen.is_new(m)]
-    results = bridge.tick(new_msgs)
+    # 整批 msgs 作为现场上下文一起给桥, 让脑看到被@那句之前群里在聊什么(治客服腔)
+    results = bridge.tick(new_msgs, recent_pool=msgs)
     if not dry_send:
         for r in results:
             if r.get("status") != "ready":

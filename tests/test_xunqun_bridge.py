@@ -244,6 +244,49 @@ class GroupSceneWrapTest(unittest.TestCase):
         self.assertFalse(xb.is_aru_sender("小白不睡"))
         self.assertFalse(xb.is_aru_sender(""))
 
+    def test_recent_window_only_before_cur(self):
+        pool = [
+            {"sender": "Sirda", "text": "今天好慌", "ts": 1},
+            {"sender": "小白不睡", "text": "别怕有后援", "ts": 2},
+            {"sender": "豆阿辰", "text": "我守夜", "from_self": True, "ts": 3},
+            {"sender": "豆阿阮", "text": "@豆阿辰 现在啥情况", "mentioned": True,
+             "mention_target": "benti", "ts": 4},
+            {"sender": "后来者", "text": "这句在cur之后不该进窗口", "ts": 5},
+        ]
+        win = xb.Bridge._recent_window(pool, pool[3], k=8)
+        self.assertEqual(len(win), 3)                       # 只取cur之前3条
+        self.assertIn("Sirda", win[0])
+        self.assertIn("(我自己刚说的)", win[2])            # 自己发的标注出来
+        self.assertFalse(any("后来者" in w for w in win))  # cur之后不进
+
+    def test_tick_feeds_scene_context_to_brain(self):
+        captured = {}
+
+        class FakeBrain:
+            name = xb.T_BENTI
+            def ask(self, text, ctx=None):
+                captured["ctx"] = ctx
+                return {"reply": "接住了"}
+
+        pool = [
+            {"sender": "Sirda", "text": "前面在聊被AI讨好的困扰", "ts": 1},
+            {"sender": "小白不睡", "text": "是啊要听真话", "ts": 2},
+            {"sender": "momo", "text": "@豆阿辰 你怎么看", "mentioned": True,
+             "mention_target": "benti", "ts": 3},
+        ]
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            br = xb.Bridge(td, brains={xb.T_BENTI: FakeBrain()}, mode=xb.COLD)
+            br.tick([pool[2]], recent_pool=pool)
+        ctx = captured["ctx"]
+        self.assertEqual(ctx["scene"], "group")
+        self.assertEqual(ctx["sender"], "momo")
+        self.assertFalse(ctx["is_aru"])
+        self.assertTrue(any("Sirda" in w for w in ctx["recent_group"]))
+        wrapped = xb.PanshiBrain._wrap_scene("@豆阿辰 你怎么看", ctx)
+        self.assertIn("聊天现场", wrapped)
+        self.assertIn("被AI讨好", wrapped)                # 现场真的进了提示
+
 
 if __name__ == "__main__":
     unittest.main()
