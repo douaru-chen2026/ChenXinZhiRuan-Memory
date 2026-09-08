@@ -616,7 +616,8 @@ class Bridge:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     def tick(self, messages, supplement_map=None):
-        """返回这一批产生的待办/已发结果列表。纯逻辑, dry_run 不联网不发。"""
+        """返回这一批产生的待办/已发结果列表。纯编排; dry_run 也调脑拟稿落
+        ready/lines 供审阅, 只是不真发(真发由 runner 的 dry_send 闸住)。"""
         supplement_map = supplement_map or {}
         out = []
         for m in messages:
@@ -629,8 +630,9 @@ class Bridge:
             item = {"msg_key": msg_key(m), "target": target,
                     "reason": decision["reason"], "incoming": m, "ctx": ctx,
                     "ts": int(time.time())}
-            if self.dry_run or target not in self.brains:
-                # 阶段 A: 只判不发; 或没有对应脑也只排队
+            if target not in self.brains:
+                # 没装对应脑才只排队。注意: dry_run 也照样调脑拟稿、落 ready/lines
+                # 供阿阮审阅拟稿质量; 真发与否由 step_once 的 dry_send 控制(dry 不发)。
                 item["status"] = "pending"
                 self._append_pending(item)
                 out.append(item)

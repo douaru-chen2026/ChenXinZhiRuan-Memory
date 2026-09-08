@@ -86,6 +86,24 @@ class StepOnceTest(unittest.TestCase):
             self.assertTrue(reader.sent)  # 真发了
             self.assertIn("我在呀", "".join(reader.sent))
 
+    def test_dry_run_with_brain_drafts_but_never_sends(self):
+        # dry_run 装了脑也要拟稿(落 ready/lines 供审阅), 但绝不真发
+        with tempfile.TemporaryDirectory() as td:
+            reader = FakeReader([[]])
+            seen = xb.SeenStore(td)
+            bridge = xb.Bridge(td, brains={xb.T_KOUZI: FakeBrain()},
+                               mode=xb.COLD, send_mode=xb.PROXY, dry_run=True)
+            state = {}
+            xr.step_once(reader, bridge, seen, "g", state, True)
+            reader.batches.append([msg("d", "豆阿阮", "小扣子 说句话")])
+            out = xr.step_once(reader, bridge, seen, "g", state,
+                               dry_send=True)
+            r = out["results"][0]
+            self.assertEqual(r["status"], "ready")  # dry 也拟了稿
+            self.assertTrue(r.get("lines"))
+            self.assertIn("我在呀", "".join(r["lines"]))
+            self.assertEqual(reader.sent, [])  # 但一个字都没发出去
+
 
 if __name__ == "__main__":
     unittest.main()
