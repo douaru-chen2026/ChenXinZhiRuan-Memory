@@ -59,11 +59,12 @@ def via_cdp(pw, cdp, out, shotdir=""):
 
 
 def via_login(pw, headed, out, timeout, shotdir=""):
-    browser = pw.chromium.launch(
-        headless=not headed,
-        executable_path=os.environ.get("XHS_CHROMIUM", ""),
-        args=["--no-sandbox", "--disable-dev-shm-usage",
-              "--disable-blink-features=AutomationControlled"])
+    _kw = dict(headless=not headed,
+               args=["--no-sandbox", "--disable-dev-shm-usage",
+                     "--disable-blink-features=AutomationControlled"])
+    if os.environ.get("XHS_CHROMIUM"):
+        _kw["executable_path"] = os.environ["XHS_CHROMIUM"]
+    browser = pw.chromium.launch(**_kw)
     pre = out if os.path.exists(out) else None
     ctx = browser.new_context(storage_state=pre, locale="zh-CN",
                               timezone_id="Asia/Shanghai", user_agent=UA,
@@ -96,11 +97,11 @@ def via_qr_live(pw, out, timeout, shotdir):
     web_session 立刻 storage_state 存 out 退出。二维码过期自动点刷新。"""
     os.makedirs(shotdir, exist_ok=True)
     live = os.path.join(shotdir, "live.png")
-    browser = pw.chromium.launch(
-        headless=True,
-        executable_path=os.environ.get("XHS_CHROMIUM", ""),
-        args=["--no-sandbox", "--disable-dev-shm-usage",
+    _kw = dict(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage",
               "--disable-blink-features=AutomationControlled"])
+    if os.environ.get("XHS_CHROMIUM"):  # 没显式指定就用 playwright 默认找到的内核
+        _kw["executable_path"] = os.environ["XHS_CHROMIUM"]
+    browser = pw.chromium.launch(**_kw)
     pre = out if os.path.exists(out) else None
     ctx = browser.new_context(storage_state=pre, locale="zh-CN",
                               timezone_id="Asia/Shanghai", user_agent=UA,
