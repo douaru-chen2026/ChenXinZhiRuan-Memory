@@ -88,7 +88,7 @@ User=river
 WorkingDirectory=$REPO
 EnvironmentFile=$ENVF
 Environment=PYTHONUNBUFFERED=1
-ExecStart=$PY tools/federation/xunqun_runner.py --state-dir $STATE --xhs-state $XHS_STATE --interval \${XUNQUN_INTERVAL:-$INTERVAL} $SEND_FLAG
+ExecStart=$PY tools/federation/xunqun_runner.py --state-dir $STATE --xhs-state $XHS_STATE --interval $INTERVAL $SEND_FLAG
 Restart=always
 RestartSec=5
 
