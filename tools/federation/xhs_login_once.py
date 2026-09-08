@@ -148,8 +148,9 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
             return False
 
     def fill_sms():
-        """新设备短信验证: 读 sms_file 里的6位码, 填进【当前可见】的弹窗输入框点'验证',
-        填完清空防重。背景手机号登录区也有个隐藏验证码框, 必须只挑可见的那个。"""
+        """新设备短信验证: 读 sms_file 的6位码填进短信弹窗。小红书这个框的提示字
+        不一定是标准 placeholder, 所以三管齐下: 找可见可编辑元素→点坐标→键盘敲;
+        并在找不到时 dump 输入元素结构到日志, 便于一次定位。"""
         if not sms_file or not os.path.exists(sms_file):
             return
         try:
@@ -157,37 +158,59 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
             digits = "".join(c for c in raw if c.isdigit())
             if len(digits) != 6:
                 return
-            boxes = page.locator('input[placeholder*="验证码"]')
-            target = None
-            for i in range(boxes.count()):
-                b = boxes.nth(i)
-                try:
-                    if b.is_visible():
-                        target = b
-                        break
-                except Exception:  # noqa: BLE001
-                    continue
-            if target is None:
-                return  # 短信弹窗还没真正出现
-            target.click()
-            try:
-                target.fill("")
-                target.type(digits, delay=90)  # 逐字符敲, React 受控输入最稳
-            except Exception:  # noqa: BLE001
-                target.fill(digits)
+            body = page.inner_text("body")
+            if "短信验证码" not in body and "请输入验证码" not in body:
+                return
+            filled = False
+            # 法1: 任意可见、可编辑的输入元素(不依赖 placeholder 文案)
+            for sel in ["input", '[contenteditable="true"]', '[role="textbox"]']:
+                loc = page.locator(sel)
+                for i in range(loc.count()):
+                    el = loc.nth(i)
+                    try:
+                        if el.is_visible() and el.is_editable():
+                            el.click()
+                            try:
+                                el.fill("")
+                            except Exception:  # noqa: BLE001
+                                pass
+                            el.type(digits, delay=90)
+                            filled = True
+                            break
+                    except Exception:  # noqa: BLE001
+                        continue
+                if filled:
+                    break
+            # 法2: 短信弹窗输入框中心(viewport 固定 1280x900), 点下去用键盘敲
+            if not filled:
+                page.mouse.click(640, 388)
+                page.wait_for_timeout(250)
+                page.keyboard.type(digits, delay=90)
+                filled = True
             page.wait_for_timeout(700)
-            for j in range(page.locator('xpath=//*[normalize-space(text())="验证"]').count()):
-                btn = page.locator('xpath=//*[normalize-space(text())="验证"]').nth(j)
+            # 点可见、可点、文字恰为"验证"的按钮
+            clicked = False
+            btns = page.locator('xpath=//*[normalize-space(text())="验证"]')
+            for j in range(btns.count()):
+                btn = btns.nth(j)
                 try:
                     if btn.is_visible() and btn.is_enabled():
                         btn.click()
+                        clicked = True
                         break
                 except Exception:  # noqa: BLE001
                     continue
-            open(sms_file, "w").close()  # 清空, 防下一轮重填
-            print(f"[sms] 已填入短信验证码 {digits[:2]}**** 并点验证", flush=True)
+            open(sms_file, "w").close()  # 清空防重
+            print(f"[sms] 已敲入 {digits[:2]}****, 点验证按钮={clicked}", flush=True)
         except Exception as exc:  # noqa: BLE001
-            print(f"[sms] 填入失败(下轮重试): {type(exc).__name__}", flush=True)
+            try:  # 诊断: dump 所有输入元素, 下次一眼定位
+                dump = page.evaluate(
+                    """()=>Array.from(document.querySelectorAll('input,[contenteditable]')).map(e=>({
+                       t:e.tagName,ph:e.placeholder||'',vis:!!(e.offsetWidth||e.offsetHeight),
+                       ed:e.isContentEditable||!e.readOnly}))""")
+                print(f"[sms] 填入失败 {type(exc).__name__}; 输入元素={dump}", flush=True)
+            except Exception:  # noqa: BLE001
+                print(f"[sms] 填入失败 {type(exc).__name__}", flush=True)
 
     print("[qr] 登录框已开, 持续刷新 live.png, 等手机扫码确认…", flush=True)
     deadline = time.time() + timeout
