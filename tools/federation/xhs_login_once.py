@@ -122,30 +122,31 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
     except Exception:  # noqa: BLE001
         pass
 
+    _diag = {"n": 0}
+
     def really_logged():
+        # cookie侧: 用 playwright API 读(能读 HttpOnly; 页面 document.cookie 读不到)。
+        # 游客 baseline 只有 14 个指纹 cookie、且无 customer/access-token; 登录后会变多。
         try:
-            sig = page.evaluate(
-                """()=>{let li='';for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
-                   if(/userid|userinfo/i.test(k))li+=k+'='+localStorage.getItem(k);}
-                   return {li:li,client:/customerClientId/.test(document.cookie)};}""")
-            li = (sig.get("li") or "").strip()
-            cand = bool(sig.get("client")) or (len(li) > 12 and "null" not in li)
-            if not cand:
-                return False
-            if not verify_url:  # 没要求行为终验, 候选即认
-                return True
-            probe = ctx.new_page()  # 行为终验: 带着态开需登录页, 进得去才算数
-            try:
-                probe.goto(verify_url, wait_until="domcontentloaded", timeout=20000)
-                probe.wait_for_timeout(6000)
-                ok = probe.evaluate(
-                    """()=>({input:!!document.querySelector('[class*=input-bar]'),
-                       kicked:/扫码登录|手机号登录|获取验证码/.test(document.body.innerText)})""")
-                return bool(ok.get("input")) and not ok.get("kicked")
-            finally:
-                probe.close()
+            names = {c.get("name") for c in ctx.cookies()}
         except Exception:  # noqa: BLE001
-            return False
+            names = set()
+        cookie_hit = any(("customer" in (n or "").lower()
+                          or "access-token" in (n or "").lower()) for n in names) \
+            or len(names) >= 16
+        # DOM侧: 登录后左侧红色"登录"按钮消失、页面上没有登录/验证弹窗
+        try:
+            dom = page.evaluate(
+                """()=>({btn:[...document.querySelectorAll('.login-btn')].some(e=>e.getBoundingClientRect().width>0),
+                   dlg:/扫码登录|手机号登录|短信验证码验证|请输入验证码|请通过验证/.test(document.body.innerText)})""")
+            dom_hit = (not dom.get("btn")) and (not dom.get("dlg"))
+        except Exception:  # noqa: BLE001
+            dom_hit = False
+        if _diag["n"] < 4:  # 打几次诊断(只打 cookie 名、不打值), 便于核对判据
+            _diag["n"] += 1
+            print(f"[diag] cookie数={len(names)} cookie_hit={cookie_hit} "
+                  f"dom_hit={dom_hit} names={sorted(n for n in names if n)}", flush=True)
+        return cookie_hit and dom_hit  # 两侧都真才算登录, 游客态两侧皆假不会误判
 
     def fill_sms():
         """新设备短信验证: 读 sms_file 的6位码填进短信弹窗。小红书这个框的提示字
@@ -231,7 +232,21 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
             pass
         fill_sms()  # 若弹了短信验证、且 sms_file 有码, 自动填
         if really_logged():
+            vok = None
+            if verify_url:  # 群页终验降级为"记录", 不再阻塞落盘(IM 首开慢不该挡住存态)
+                try:
+                    probe = ctx.new_page()
+                    probe.goto(verify_url, wait_until="domcontentloaded", timeout=20000)
+                    probe.wait_for_timeout(6000)
+                    r = probe.evaluate(
+                        """()=>({i:!!document.querySelector('[class*=input-bar]'),
+                           k:/扫码登录|手机号登录|获取验证码/.test(document.body.innerText)})""")
+                    vok = bool(r.get("i")) and not r.get("k")
+                    probe.close()
+                except Exception:  # noqa: BLE001
+                    vok = False
             _save(ctx, out)
+            print(f"[ok] 登录态已存 {out}, 群页终验={vok}", flush=True)
             browser.close()
             return
         page.wait_for_timeout(3000)
