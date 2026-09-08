@@ -91,13 +91,15 @@ def via_login(pw, headed, out, timeout, shotdir=""):
     raise TimeoutError(f"{timeout}s 内没检测到登录({SESSION_COOKIE}), 再试一次或换 CDP 路")
 
 
-def via_qr_live(pw, out, timeout, shotdir, verify_url=""):
+def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
     """无显示器远程扫码(守夜机场景): headless 弹出登录框, 把最新二维码截图持续
     覆盖写到 shotdir/live.png, 外部把它搬到阿阮眼前用手机App扫。
 
     判真登录(关键): 小红书给【游客】也会种 web_session, 只看它会把游客态误存。
     候选信号=localStorage 出现非空 user/userInfo, 或 cookie 出现 customerClientId;
-    若给了 verify_url(如群聊页), 还要真访问一次、确认有输入框且没被弹登录, 才存。"""
+    若给了 verify_url(如群聊页), 还要真访问一次、确认有输入框且没被弹登录, 才存。
+    sms_file: 新设备走完两道扫码后可能再要短信验证码; 外部把6位码写进该文件,
+    本函数检测到短信弹窗就自动填入点验证(填完清空防重)。"""
     os.makedirs(shotdir, exist_ok=True)
     live = os.path.join(shotdir, "live.png")
     _kw = dict(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage",
@@ -145,6 +147,27 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url=""):
         except Exception:  # noqa: BLE001
             return False
 
+    def fill_sms():
+        """新设备短信验证: 读 sms_file 里的6位码, 填进弹窗点'验证', 填完清空防重。"""
+        if not sms_file or not os.path.exists(sms_file):
+            return
+        try:
+            raw = open(sms_file, encoding="utf-8").read().strip()
+            digits = "".join(c for c in raw if c.isdigit())
+            if len(digits) != 6:
+                return
+            box = page.locator('input[placeholder*="验证码"]').last
+            if not box.is_visible():
+                return
+            box.click()
+            box.fill(digits)
+            page.wait_for_timeout(500)
+            page.locator('xpath=//*[normalize-space(text())="验证"]').last.click()
+            open(sms_file, "w").close()  # 清空, 防下一轮重填
+            print(f"[sms] 已填入短信验证码 {digits[:2]}**** 并点验证", flush=True)
+        except Exception:  # noqa: BLE001
+            pass
+
     print("[qr] 登录框已开, 持续刷新 live.png, 等手机扫码确认…", flush=True)
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -162,6 +185,7 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url=""):
             page.screenshot(path=live)
         except Exception:  # noqa: BLE001
             pass
+        fill_sms()  # 若弹了短信验证、且 sms_file 有码, 自动填
         if really_logged():
             _save(ctx, out)
             browser.close()
@@ -194,6 +218,8 @@ def main():
                     help="无显示器远程扫码: 持续出 live.png 等手机扫, 登录即存")
     ap.add_argument("--verify-url", default="",
                     help="候选登录后再访问该URL确认不被踢(如群聊页), 双保险防游客态误存")
+    ap.add_argument("--sms-file", default="/tmp/xhslogin/sms_code.txt",
+                    help="新设备短信验证: 外部把6位码写进此文件, 自动填入点验证")
     args = ap.parse_args()
 
     try:
@@ -207,7 +233,8 @@ def main():
         if args.qr_live:
             if not args.shotdir:
                 raise SystemExit("--qr-live 必须配 --shotdir 指定 live.png 输出目录")
-            via_qr_live(pw, args.out, args.timeout, args.shotdir, args.verify_url)
+            via_qr_live(pw, args.out, args.timeout, args.shotdir,
+                        args.verify_url, args.sms_file)
         elif args.cdp:
             via_cdp(pw, args.cdp, args.out, args.shotdir)
         else:
