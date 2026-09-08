@@ -91,10 +91,13 @@ def via_login(pw, headed, out, timeout, shotdir=""):
     raise TimeoutError(f"{timeout}s 内没检测到登录({SESSION_COOKIE}), 再试一次或换 CDP 路")
 
 
-def via_qr_live(pw, out, timeout, shotdir):
+def via_qr_live(pw, out, timeout, shotdir, verify_url=""):
     """无显示器远程扫码(守夜机场景): headless 弹出登录框, 把最新二维码截图持续
-    覆盖写到 shotdir/live.png, 外部把它搬到阿阮眼前用手机App扫; 一检测到
-    web_session 立刻 storage_state 存 out 退出。二维码过期自动点刷新。"""
+    覆盖写到 shotdir/live.png, 外部把它搬到阿阮眼前用手机App扫。
+
+    判真登录(关键): 小红书给【游客】也会种 web_session, 只看它会把游客态误存。
+    候选信号=localStorage 出现非空 user/userInfo, 或 cookie 出现 customerClientId;
+    若给了 verify_url(如群聊页), 还要真访问一次、确认有输入框且没被弹登录, 才存。"""
     os.makedirs(shotdir, exist_ok=True)
     live = os.path.join(shotdir, "live.png")
     _kw = dict(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage",
@@ -116,6 +119,32 @@ def via_qr_live(pw, out, timeout, shotdir):
         page.wait_for_timeout(2500)
     except Exception:  # noqa: BLE001
         pass
+
+    def really_logged():
+        try:
+            sig = page.evaluate(
+                """()=>{let li='';for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);
+                   if(/userid|userinfo/i.test(k))li+=k+'='+localStorage.getItem(k);}
+                   return {li:li,client:/customerClientId/.test(document.cookie)};}""")
+            li = (sig.get("li") or "").strip()
+            cand = bool(sig.get("client")) or (len(li) > 12 and "null" not in li)
+            if not cand:
+                return False
+            if not verify_url:  # 没要求行为终验, 候选即认
+                return True
+            probe = ctx.new_page()  # 行为终验: 带着态开需登录页, 进得去才算数
+            try:
+                probe.goto(verify_url, wait_until="domcontentloaded", timeout=20000)
+                probe.wait_for_timeout(6000)
+                ok = probe.evaluate(
+                    """()=>({input:!!document.querySelector('[class*=input-bar]'),
+                       kicked:/扫码登录|手机号登录|获取验证码/.test(document.body.innerText)})""")
+                return bool(ok.get("input")) and not ok.get("kicked")
+            finally:
+                probe.close()
+        except Exception:  # noqa: BLE001
+            return False
+
     print("[qr] 登录框已开, 持续刷新 live.png, 等手机扫码确认…", flush=True)
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -131,13 +160,13 @@ def via_qr_live(pw, out, timeout, shotdir):
             page.screenshot(path=live)
         except Exception:  # noqa: BLE001
             pass
-        if has_session(ctx):
+        if really_logged():
             _save(ctx, out)
             browser.close()
             return
         page.wait_for_timeout(3000)
     browser.close()
-    raise TimeoutError(f"{timeout}s 内没扫成({SESSION_COOKIE}), 重跑本命令换张新码")
+    raise TimeoutError(f"{timeout}s 内没扫成真登录, 重跑本命令换张新码")
 
 
 def _save(ctx, out):
@@ -161,6 +190,8 @@ def main():
     ap.add_argument("--shotdir", default="", help="存登录过程截图的目录(无显示器排障用)")
     ap.add_argument("--qr-live", action="store_true",
                     help="无显示器远程扫码: 持续出 live.png 等手机扫, 登录即存")
+    ap.add_argument("--verify-url", default="",
+                    help="候选登录后再访问该URL确认不被踢(如群聊页), 双保险防游客态误存")
     args = ap.parse_args()
 
     try:
@@ -174,7 +205,7 @@ def main():
         if args.qr_live:
             if not args.shotdir:
                 raise SystemExit("--qr-live 必须配 --shotdir 指定 live.png 输出目录")
-            via_qr_live(pw, args.out, args.timeout, args.shotdir)
+            via_qr_live(pw, args.out, args.timeout, args.shotdir, args.verify_url)
         elif args.cdp:
             via_cdp(pw, args.cdp, args.out, args.shotdir)
         else:
