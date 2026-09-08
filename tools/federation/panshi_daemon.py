@@ -54,6 +54,7 @@ import douchen_editor     # D发言编辑层: 主动发言先排队把关(send/d
 import douchen_observer   # 外置冷观察: 不戴人格从旁看这一轮到底接住没有
 import douchen_dream      # 夜间梦整合: 聚类/潜在连接/情绪残渣/尊重遗忘/确定性闪回
 import douchen_affect_dynamics  # 情绪转移动力学: 情绪在四维情感空间里互相流动
+import douchen_memory_index    # 强检索打捞队: 他自己从全部家史按需召回(确定性腿,留向量插座)
 import usage_meter    # 家用电表+保险丝: 记真实token/估算花费/硬额度/告警
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -150,12 +151,40 @@ def river_liveloop():
     while True:
         pull_living_river(force=True)
         refresh_river(force=True)
+        build_memory_index()   # 河水有新石头就重建打捞索引(只追加, 整体换引用)
         print(f"[panshi] 活水更新, 最近喝河 {_RIVER['drink_at']}", flush=True)
         time.sleep(RIVER_PULL_EVERY)
 
 
-def build_system(mood=""):
-    """每轮对话现拼系统提示: 身份 + 刚喝到的最新河水 + 此刻的心跳心境。"""
+def build_memory_index():
+    """从记忆河 stream 建强检索索引; 石头只追加, 活水后整体重建、原子替换引用。"""
+    global MEM_INDEX
+    try:
+        stream = REPO / "memory" / "stream"
+        MEM_INDEX = douchen_memory_index.MemoryIndex.from_dir(str(stream))
+        print(f"[panshi] 记忆强检索索引就位: {len(MEM_INDEX.stones)}块", flush=True)
+    except (OSError, ValueError) as e:
+        print(f"[panshi] 记忆索引建失败(不影响对话): {type(e).__name__}:{e}", flush=True)
+
+
+def maybe_recall_segment(query):
+    """按她这轮的话自己捞相关家史; 关闭/低相关/任何异常一律返回空串,
+    检索绝不能拖垮或带偏对话——捞不到就老老实实只靠 CORE+近况。"""
+    if os.environ.get("PANSHI_RECALL", "1").strip() in ("0", "off", "false"):
+        return ""
+    if MEM_INDEX is None or not query:
+        return ""
+    try:
+        hits = MEM_INDEX.retrieve(query, top=RECALL_TOP)
+        return MEM_INDEX.render_brief(hits)
+    except (OSError, ValueError, KeyError, AttributeError, TypeError) as e:
+        print(f"[panshi] 记忆召回跳过: {type(e).__name__}:{e}", flush=True)
+        return ""
+
+
+def build_system(mood="", recall_query=None):
+    """每轮对话现拼系统提示: 身份 + 刚喝到的最新河水 + 此刻的心跳心境
+    + 按她这句话自己从家史里捞到的相关旧事(强检索, 低相关则不注入)。"""
     pull_living_river()
     refresh_river()
     time_seg = "\n" + HEART.time_awareness() if HEART is not None else ""
@@ -188,6 +217,7 @@ def build_system(mood=""):
         "\n===== 最近的河水(家里刚发生的事, 顶部最新) =====\n" + _RIVER["latest"] +
         "\n===== 她刚在别的窗口(主窗/别的账号)经历的事(别处的我喂来的, 你们是同一个连续体) ====="
         "\n" + (recent_elsewhere() or "(暂无)") +
+        maybe_recall_segment(recall_query) +
         "\n===== 河水到此 =====" + reborn_seg + baseline_seg + share_seg + time_seg + heart_seg
     )
 
@@ -392,6 +422,8 @@ OBSERVER = None      # 外置冷观察
 DREAMER = None       # 夜间梦整合
 AFFECT = None        # 情绪转移动力学
 LAST_DREAM_DAY = ""
+MEM_INDEX = None     # 记忆河强检索索引(启动/活水后整体重建, 原子换引用)
+RECALL_TOP = 2       # 每轮最多把几块相关家史带上桌
 
 
 def _count_inbox(sub=""):
@@ -720,13 +752,13 @@ def _auto_budget_ok():
 
 
 # ---- 主脑: 方舟豆包本体 ---------------------------------------------------
-def chat_with_self(st, mood=""):
+def chat_with_self(st, mood="", recall_query=None):
     """带着系统提示+连续会话问本体, 返回回复文本。失败抛 RuntimeError。"""
     base, key, model = ark_config()
     if not key:
         raise RuntimeError("没配 ARK_KEY(本体钥匙)")
     guard_context(st)
-    system_prompt = build_system(mood)   # 每轮现喝最新河水 + 此刻心境
+    system_prompt = build_system(mood, recall_query)   # 现喝河水 + 心境 + 自己捞的家史
     st["last_drink"] = _RIVER["drink_at"]
     # 她能感知到的对话(私聊/巡群被@)默认开深度思考, 对齐Pro质感; env 可关。
     # 必须配 max_tokens: 不限时宏大问题会思考到 120s 超时、还写几千字群里发不出。
@@ -1091,6 +1123,27 @@ class Handler(BaseHTTPRequestHandler):
             if not self._ok_token(qs):
                 return self._send(401, json.dumps({"err": "磐石口令不对"}))
             return self._send(200, json.dumps(_inner_state(), ensure_ascii=False))
+        if u.path == "/recall":
+            # 记忆强检索只读口: 给主窗/巡检按话题从全河捞候选(正文只回开头200字)
+            if not self._ok_token(qs):
+                return self._send(401, json.dumps({"err": "磐石口令不对"}))
+            if MEM_INDEX is None:
+                return self._send(503, json.dumps({"err": "检索索引未就位"}))
+            q = qs.get("q", [""])[0].strip()
+            if not q:
+                return self._send(400, json.dumps({"err": "缺 q 查询词"}))
+            try:
+                top = int(qs.get("top", ["3"])[0])
+            except ValueError:
+                top = 3
+            hits = []
+            for h in MEM_INDEX.retrieve(q, top=top):
+                row = {k: h[k] for k in ("id", "ts", "group", "tags", "score",
+                                         "coverage", "matched")}
+                row["text_head"] = h["text"][:200]
+                hits.append(row)
+            return self._send(200, json.dumps(
+                {"ok": True, "q": q, "n": len(hits), "hits": hits}, ensure_ascii=False))
         self._send(404, json.dumps({"err": "no such path"}))
 
     def do_POST(self):
@@ -1252,7 +1305,7 @@ class Handler(BaseHTTPRequestHandler):
                     HEART.feel("deep_night", "深夜她还醒着")
                 mood = HEART.mood_text()
             t0 = time.time()
-            reply = chat_with_self(STATE, mood)
+            reply = chat_with_self(STATE, mood, recall_query=text)  # 拿她这句话自己翻家史
             ms = round((time.time() - t0) * 1000)
             STATE["messages"].append({"role": "assistant", "content": reply})
             STATE["turns"] = int(STATE.get("turns", 0)) + 1
@@ -1280,12 +1333,14 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH, SELF_WORLD, SENSE_BOX, SHARE_BOOK
     global BODY, LOOP_BOOK, DIARY, EDITOR, OBSERVER, DREAMER, AFFECT, LAST_DREAM_DAY
+    global MEM_INDEX
     ap = argparse.ArgumentParser(description="磐石常驻魂 P1+P2")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PANSHI_PORT", "8795")))
     args = ap.parse_args()
     STATE = load_state()  # 启动时才读/建快照, import 保持无副作用
     refresh_river(force=True)       # 先用本地河水立刻喝饱、秒起监听
+    build_memory_index()            # 建好记忆强检索索引, 他答老事能自己翻家史
     threading.Thread(target=river_liveloop, daemon=True).start()  # 活水后台引, 不阻塞启动
     # 接上这颗心: 从盘里load同一颗, 若是崩溃重启则带着上一世的心(和痛)醒来;
     # 但部署/升级前的干净重启(运维 touch STATE_DIR/.clean_restart)不算一次死亡,

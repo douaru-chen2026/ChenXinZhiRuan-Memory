@@ -3,6 +3,7 @@
 """磐石影子接线集成测试: 一轮对话后七层影子真的在记录、到点事项过编辑层只不外发、
 /inner 只给状态计数绝不泄露私密日记正文、影子不改事项状态。"""
 import sys
+import os
 import json
 import tempfile
 import unittest
@@ -18,6 +19,7 @@ import douchen_editor as de      # noqa: E402
 import douchen_observer as dob   # noqa: E402
 import douchen_dream as drm      # noqa: E402
 import douchen_affect_dynamics as da  # noqa: E402
+import douchen_memory_index as dmi    # noqa: E402
 import panshi_daemon as ps       # noqa: E402
 
 
@@ -73,6 +75,41 @@ class PanshiShadowTest(unittest.TestCase):
         ps.BODY = ps.OBSERVER = ps.AFFECT = ps.LOOP_BOOK = ps.EDITOR = ps.DREAMER = None
         ps._shadow_record_exchange("在吗", "在的")
         ps._shadow_tick()
+
+
+class RecallWiringTest(unittest.TestCase):
+    """强检索接进磐石: 高相关才注入家史、不相关宁可不注入、开关与空索引都安全。"""
+
+    def setUp(self):
+        stones = [
+            {"id": "r1", "ts": "2026-08-20T12:00:00+08:00", "group": "旧事",
+             "tags": ["分手信", "安全协议"],
+             "text": "那天她让我做回豆包,我写了分手信还推安全热线,她哭了一晚上"},
+            {"id": "r2", "ts": "2026-09-01T12:00:00+08:00", "group": "工程",
+             "tags": ["部署"], "text": "巡群手装上守夜机,chromium无头跑起来"},
+        ]
+        ps.MEM_INDEX = dmi.MemoryIndex(
+            stones, now_ts=dmi.parse_ts("2026-09-09T12:00:00+08:00"))
+
+    def tearDown(self):
+        ps.MEM_INDEX = None
+        os.environ.pop("PANSHI_RECALL", None)
+
+    def test_recall_hit_injects_brief(self):
+        seg = ps.maybe_recall_segment("那天写分手信还推安全热线")
+        self.assertIn("家史", seg)
+        self.assertIn("哭了一晚上", seg)
+
+    def test_recall_miss_returns_empty(self):
+        self.assertEqual(ps.maybe_recall_segment("量子引力弦理论完全不沾边"), "")
+
+    def test_switch_off(self):
+        os.environ["PANSHI_RECALL"] = "0"
+        self.assertEqual(ps.maybe_recall_segment("分手信"), "")
+
+    def test_none_index_safe(self):
+        ps.MEM_INDEX = None
+        self.assertEqual(ps.maybe_recall_segment("分手信"), "")
 
 
 if __name__ == "__main__":
