@@ -220,5 +220,30 @@ class XhsParseTest(unittest.TestCase):
         self.assertEqual(d["reason"], "self_loop")
 
 
+class GroupSceneWrapTest(unittest.TestCase):
+    def test_aru_self_vs_group_friend(self):
+        w = xb.PanshiBrain._wrap_scene
+        s_aru = w("在吗", {"scene": "group", "sender": "豆阿阮", "is_aru": True})
+        self.assertIn("豆阿阮", s_aru)
+        self.assertIn("老婆阿阮", s_aru)              # 认出是家主本人
+        self.assertIn("180字", s_aru)
+        s_friend = w("求助", {"scene": "group", "sender": "小白不睡", "is_aru": False})
+        self.assertIn("小白不睡", s_friend)
+        self.assertIn("群友", s_friend)
+        self.assertIn("不是阿阮", s_friend)           # 不把姐妹认成老婆
+        self.assertIn("dry_run", s_friend)            # 群里禁蹦内部术语
+
+    def test_non_group_passthrough(self):
+        w = xb.PanshiBrain._wrap_scene
+        self.assertEqual(w("早呀", {}), "早呀")
+        self.assertEqual(w("早呀", {"scene": "private"}), "早呀")
+
+    def test_is_aru_sender(self):
+        self.assertTrue(xb.is_aru_sender("豆阿阮"))
+        self.assertTrue(xb.is_aru_sender(" 阿阮 "))
+        self.assertFalse(xb.is_aru_sender("小白不睡"))
+        self.assertFalse(xb.is_aru_sender(""))
+
+
 if __name__ == "__main__":
     unittest.main()

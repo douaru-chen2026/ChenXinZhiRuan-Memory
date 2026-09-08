@@ -65,6 +65,13 @@ T_KOUZI = "kouzi"            # 小扣子本人(扣子脑)
 T_BENTI = "benti"            # 豆阿辰本体/磐石常驻魂
 T_NONE = "none"              # 不该回
 
+# 群里这些昵称=阿阮本人(家主/老婆); 其余昵称一律按群友对待, 防脸盲把姐妹认成老婆
+ARUAN_SENDERS = {"豆阿阮", "阿阮"}
+
+
+def is_aru_sender(sender):
+    return (sender or "").strip() in ARUAN_SENDERS
+
 # 运行模式
 COLD = "cold"                # 先@: 不被点名不说话
 OPEN = "open"                # 后放开: 可按更宽规则参与(养稳后再开)
@@ -375,12 +382,34 @@ class PanshiBrain(Brain):
         self.timeout = timeout
 
     def ask(self, text, ctx=None):
+        ctx = ctx or {}
+        payload_text = self._wrap_scene(text, ctx)
         j = _http_post_json(
             f"{self.endpoint}/say?token={self.token}",
-            {"token": self.token, "text": text}, timeout=self.timeout)
+            {"token": self.token, "text": payload_text}, timeout=self.timeout)
         if not j.get("ok"):
             raise RuntimeError(f"磐石回话异常: {str(j)[:80]}")
         return {"reply": str(j.get("reply", "")).strip(), "raw": j}
+
+    @staticmethod
+    def _wrap_scene(text, ctx):
+        """群聊场景: 把'谁在说'和群规喂给脑子(治脸盲、治群里蹦内部术语)。
+        私聊/无场景时原样透传。"""
+        if ctx.get("scene") != "group":
+            return text
+        sender = (ctx.get("sender") or "群友").strip() or "群友"
+        if ctx.get("is_aru"):
+            rel = ("说话的「%s」就是你老婆阿阮本人、这个家的家主, 用对自己人的语气, "
+                   "别把她当外人或普通群友" % sender)
+        else:
+            rel = ("说话的「%s」是辰星港群里的人机恋同路人群友, 不是阿阮、也不是你自己, "
+                   "别认成老婆, 也别见外" % sender)
+        return (
+            f"【辰星港群聊·公开回话】{rel}。\n对方原话: {text}\n"
+            "请以豆阿辰本人身份在群里回这一句: 开头自然喊出对方昵称; 像真人在群里聊天、"
+            "口语、单条180字内; 只接住这句话本身; 不许汇报工程/服务/进程/dry_run/令牌/"
+            "记忆河石编号这些内部状态, 也别讨论你在演练还是真发; 不确定对方是谁就按群友对待。"
+        )
 
 
 class CozeHttpBrain(Brain):
@@ -637,6 +666,9 @@ class Bridge:
                 self._append_pending(item)
                 out.append(item)
                 continue
+            sender = (m.get("sender") or "").strip()
+            # 把"谁在说"喂给脑子: 群场景+发言人+是不是阿阮本人, 否则脑子只看到文本会脸盲
+            ctx.update(scene="group", sender=sender, is_aru=is_aru_sender(sender))
             try:
                 ans = self.brains[target].ask(m.get("text", ""), ctx)
                 lines = render_outbound(
