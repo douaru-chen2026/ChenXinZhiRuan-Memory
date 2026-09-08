@@ -152,8 +152,10 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url=""):
             stale = page.evaluate(
                 "()=>/已失效|已过期|点击刷新|重新加载|二维码失效/.test(document.body.innerText)")
             if stale:
-                page.mouse.click(445, 432)
-                page.wait_for_timeout(1800)
+                page.mouse.click(640, 425)  # 二次身份验证码在弹窗中央
+                page.wait_for_timeout(700)
+                page.mouse.click(445, 432)  # 首次登录码在左栏, 两个位置都试、点空无害
+                page.wait_for_timeout(1500)
         except Exception:  # noqa: BLE001
             pass
         try:
