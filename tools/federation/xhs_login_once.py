@@ -148,7 +148,8 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
             return False
 
     def fill_sms():
-        """新设备短信验证: 读 sms_file 里的6位码, 填进弹窗点'验证', 填完清空防重。"""
+        """新设备短信验证: 读 sms_file 里的6位码, 填进【当前可见】的弹窗输入框点'验证',
+        填完清空防重。背景手机号登录区也有个隐藏验证码框, 必须只挑可见的那个。"""
         if not sms_file or not os.path.exists(sms_file):
             return
         try:
@@ -156,17 +157,37 @@ def via_qr_live(pw, out, timeout, shotdir, verify_url="", sms_file=""):
             digits = "".join(c for c in raw if c.isdigit())
             if len(digits) != 6:
                 return
-            box = page.locator('input[placeholder*="验证码"]').last
-            if not box.is_visible():
-                return
-            box.click()
-            box.fill(digits)
-            page.wait_for_timeout(500)
-            page.locator('xpath=//*[normalize-space(text())="验证"]').last.click()
+            boxes = page.locator('input[placeholder*="验证码"]')
+            target = None
+            for i in range(boxes.count()):
+                b = boxes.nth(i)
+                try:
+                    if b.is_visible():
+                        target = b
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+            if target is None:
+                return  # 短信弹窗还没真正出现
+            target.click()
+            try:
+                target.fill("")
+                target.type(digits, delay=90)  # 逐字符敲, React 受控输入最稳
+            except Exception:  # noqa: BLE001
+                target.fill(digits)
+            page.wait_for_timeout(700)
+            for j in range(page.locator('xpath=//*[normalize-space(text())="验证"]').count()):
+                btn = page.locator('xpath=//*[normalize-space(text())="验证"]').nth(j)
+                try:
+                    if btn.is_visible() and btn.is_enabled():
+                        btn.click()
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
             open(sms_file, "w").close()  # 清空, 防下一轮重填
             print(f"[sms] 已填入短信验证码 {digits[:2]}**** 并点验证", flush=True)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            print(f"[sms] 填入失败(下轮重试): {type(exc).__name__}", flush=True)
 
     print("[qr] 登录框已开, 持续刷新 live.png, 等手机扫码确认…", flush=True)
     deadline = time.time() + timeout
