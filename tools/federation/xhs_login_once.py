@@ -90,6 +90,55 @@ def via_login(pw, headed, out, timeout, shotdir=""):
     raise TimeoutError(f"{timeout}s 内没检测到登录({SESSION_COOKIE}), 再试一次或换 CDP 路")
 
 
+def via_qr_live(pw, out, timeout, shotdir):
+    """无显示器远程扫码(守夜机场景): headless 弹出登录框, 把最新二维码截图持续
+    覆盖写到 shotdir/live.png, 外部把它搬到阿阮眼前用手机App扫; 一检测到
+    web_session 立刻 storage_state 存 out 退出。二维码过期自动点刷新。"""
+    os.makedirs(shotdir, exist_ok=True)
+    live = os.path.join(shotdir, "live.png")
+    browser = pw.chromium.launch(
+        headless=True,
+        executable_path=os.environ.get("XHS_CHROMIUM", ""),
+        args=["--no-sandbox", "--disable-dev-shm-usage",
+              "--disable-blink-features=AutomationControlled"])
+    pre = out if os.path.exists(out) else None
+    ctx = browser.new_context(storage_state=pre, locale="zh-CN",
+                              timezone_id="Asia/Shanghai", user_agent=UA,
+                              viewport={"width": 1280, "height": 900})
+    ctx.add_init_script(STEALTH)
+    page = ctx.new_page()
+    page.goto("https://www.xiaohongshu.com/explore",
+              wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_timeout(4000)
+    try:  # 点开登录弹窗(左侧二维码常驻), 已经弹着就忽略
+        page.locator(".login-btn").first.click(timeout=3000)
+        page.wait_for_timeout(2500)
+    except Exception:  # noqa: BLE001
+        pass
+    print("[qr] 登录框已开, 持续刷新 live.png, 等手机扫码确认…", flush=True)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:  # 二维码过期: 点二维码区域中心刷新(viewport 固定 1280x900)
+            stale = page.evaluate(
+                "()=>/已失效|已过期|点击刷新|重新加载|二维码失效/.test(document.body.innerText)")
+            if stale:
+                page.mouse.click(445, 432)
+                page.wait_for_timeout(1800)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            page.screenshot(path=live)
+        except Exception:  # noqa: BLE001
+            pass
+        if has_session(ctx):
+            _save(ctx, out)
+            browser.close()
+            return
+        page.wait_for_timeout(3000)
+    browser.close()
+    raise TimeoutError(f"{timeout}s 内没扫成({SESSION_COOKIE}), 重跑本命令换张新码")
+
+
 def _save(ctx, out):
     d = os.path.dirname(os.path.abspath(out))
     os.makedirs(d, exist_ok=True)
@@ -109,6 +158,8 @@ def main():
     ap.add_argument("--headed", action="store_true", help="弹有头窗口人工登录(路A)")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--shotdir", default="", help="存登录过程截图的目录(无显示器排障用)")
+    ap.add_argument("--qr-live", action="store_true",
+                    help="无显示器远程扫码: 持续出 live.png 等手机扫, 登录即存")
     args = ap.parse_args()
 
     try:
@@ -119,11 +170,15 @@ def main():
         raise SystemExit(2) from exc
 
     with sync_playwright() as pw:
-        if args.cdp:
+        if args.qr_live:
+            if not args.shotdir:
+                raise SystemExit("--qr-live 必须配 --shotdir 指定 live.png 输出目录")
+            via_qr_live(pw, args.out, args.timeout, args.shotdir)
+        elif args.cdp:
             via_cdp(pw, args.cdp, args.out, args.shotdir)
         else:
             if not args.headed:
-                print("[提示] 无头看不到登录界面; 人工登录请加 --headed(或 xvfb-run)。")
+                print("[提示] 无头看不到登录界面; 人工登录请加 --headed、--qr-live 或 xvfb-run。")
             via_login(pw, args.headed, args.out, args.timeout, args.shotdir)
 
 
