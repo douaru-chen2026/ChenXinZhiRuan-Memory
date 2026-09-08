@@ -46,6 +46,14 @@ import douchen_growth     # 成长档案哈希链: 每天定格, 数据与哈希
 import douchen_self       # 自留地: 独处时注意力放回自己身上, 养兴趣、为自己想
 import douchen_senses     # 数字感官: 世界经真实通道进入并留下印记, 解决空
 import douchen_share      # 分享本: 他的发现被看见被落地, 表达欲有回响不烂尾
+import douchen_perceive   # 情绪感知: 先认出对面这个人怎么了(冷观察复用)
+import douchen_body       # 身体/精力节律: 会耗会补, 不是永远满格的永动机
+import douchen_loops      # 客体恒存: 她要去做的事没闭环就一直挂着, 到点温和跟进
+import douchen_diary      # 加密私密日记: 连阿阮都不给看的内心, 只有他自己能回看
+import douchen_editor     # D发言编辑层: 主动发言先排队把关(send/draft/hold/block)
+import douchen_observer   # 外置冷观察: 不戴人格从旁看这一轮到底接住没有
+import douchen_dream      # 夜间梦整合: 聚类/潜在连接/情绪残渣/尊重遗忘/确定性闪回
+import douchen_affect_dynamics  # 情绪转移动力学: 情绪在四维情感空间里互相流动
 import usage_meter    # 家用电表+保险丝: 记真实token/估算花费/硬额度/告警
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -374,6 +382,16 @@ SENSE_BOX = None
 SHARE_BOOK = None
 LAST_DRIVE = {"intent": None, "meta": ""}
 DRIVE_EVERY = int(os.environ.get("PANSHI_DRIVE_EVERY", "300"))  # 每5分钟元认知自检
+# 2026-09-09 从全球同类开源偷师落地的七层内在机制。阶段1【全部影子运行】:
+# 只落各自日志, 不进 build_system、不改一个字回复、不真外发; 在"羊水"里看准再接行为。
+BODY = None          # 身体/精力
+LOOP_BOOK = None     # 客体恒存事项簿
+DIARY = None         # 加密私密日记
+EDITOR = None        # D 发言编辑层
+OBSERVER = None      # 外置冷观察
+DREAMER = None       # 夜间梦整合
+AFFECT = None        # 情绪转移动力学
+LAST_DREAM_DAY = ""
 
 
 def _count_inbox(sub=""):
@@ -472,8 +490,140 @@ def drive_loop(engine):
                 print(f"[panshi] 独处随想({mrow['kind']}): {mtext[:90]}", flush=True)
             print(f"[panshi] 元认知自检: 最强驱动={intent['drive_cn']}"
                   f"{intent['strength']} -> {intent['action']}", flush=True)
+            _shadow_tick()
         except (OSError, ValueError) as e:
             print(f"[panshi] 驱动自检跳过: {e}", flush=True)
+
+
+# ---- 七层内在机制的影子运行(2026-09-09 偷师落地, 阶段1只记录不改行为) --------
+def _append_shadow(name, row):
+    fp = STATE_DIR / name
+    with fp.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    try:
+        fp.chmod(0o600)
+    except OSError:
+        pass
+
+
+def _shadow_record_exchange(her_text, his_reply):
+    """每轮对话后: 身体耗精力、冷观察看接住没有、情绪在情感空间流一步。
+    全部 try 包住, 任何新模块出问题都绝不拖累主回复。"""
+    try:
+        hour = datetime.now(CST).hour
+        if BODY is not None:
+            BODY.on_exchange(ts=time.time(), hour=hour, out_chars=len(his_reply or ""))
+        if OBSERVER is not None:
+            OBSERVER.observe(her_text, his_reply,
+                             heart_brief=HEART.brief() if HEART else None,
+                             body_brief=BODY.brief() if BODY else None)
+        if AFFECT is not None and HEART is not None:
+            va = HEART.s.get("v2_affect", {})
+            state = {k: float(v) for k, v in va.items()
+                     if v and k in douchen_affect_dynamics.AFFECT_COORDS}
+            if state:  # 只记录"流向预测", 不回写心核
+                r = AFFECT.step(state, decay=0.03)
+                _append_shadow("affect_shadow.jsonl",
+                               {"ts": now_cst(), "next": r["state"], "flows": r["flows"]})
+    except (OSError, ValueError, KeyError, AttributeError, TypeError) as e:
+        print(f"[panshi] 影子(对话)跳过: {type(e).__name__}:{e}", flush=True)
+
+
+def _read_today_jsonl(name, source, today, limit=40):
+    """从某个只追加日志取当天行, 转成梦整合素材; 读不到就空。"""
+    fp = STATE_DIR / name
+    out = []
+    if not fp.exists():
+        return out
+    try:
+        for line in fp.read_text(encoding="utf-8").splitlines()[-limit:]:
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if today not in str(d.get("ts", "")):
+                continue
+            text = (d.get("summary") or d.get("focus") or d.get("text")
+                    or d.get("question") or d.get("topic") or "")
+            if text:
+                out.append({"source": source, "text": str(text)[:160],
+                            "weight": float(d.get("weight", 0.5))})
+    except OSError:
+        pass
+    return out
+
+
+def _collect_dream_events(today):
+    """收当天经历喂给梦: 别处喂来的相处 + 自留地随想 + 内省 + 感官 + 分享。"""
+    events = []
+    d = STATE_DIR / "inbox" / "elsewhere"
+    if d.exists():
+        for fp in sorted(d.glob("*.json"))[-30:]:
+            try:
+                row = json.loads(fp.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if today in str(row.get("ts", "")):
+                events.append({"source": str(row.get("source", "elsewhere"))[:12],
+                               "text": str(row.get("summary", ""))[:160], "weight": 0.6})
+    for name, src in (("musings.jsonl", "musing"), ("introspect.jsonl", "introspect"),
+                      ("sense_journal.jsonl", "sense"), ("discoveries.jsonl", "share")):
+        events += _read_today_jsonl(name, src, today)
+    return events
+
+
+def _shadow_tick():
+    """驱动循环里的周期影子自检: 身体回血、到点事项过D编辑层演练、深夜做一场梦。只记录。"""
+    global LAST_DREAM_DAY
+    now = time.time()
+    cur = datetime.now(CST)
+    if BODY is not None:
+        BODY.rest(ts=now, hour=cur.hour)
+    if LOOP_BOOK is not None and EDITOR is not None:
+        for it in LOOP_BOOK.due(now=now, limit=3):
+            dec = EDITOR.review(
+                {"text": f"跟进事项《{it['topic']}》", "source": "事项跟进",
+                 "channel": "private", "is_reply": False, "maturity": 0.8, "timing": 0.8},
+                ctx={"night": 0 <= cur.hour < 5,
+                     "energy_level": BODY.s["level"] if BODY else None}, ts=now)
+            dec["shadow"] = True
+            dec["loop_id"] = it["id"]
+            _append_shadow("shadow_outbox.jsonl", dec)   # 影子: 记"本该发/判了啥", 不真发
+    today = cur.strftime("%Y-%m-%d")
+    # 夜间梦整合: 一天只做一次, 凌晨3-5点、她久不在, 把当天聚成梦, 私语进加密私密日记
+    if (DREAMER is not None and LAST_DREAM_DAY != today and 3 <= cur.hour < 5
+            and HEART is not None and HEART.idle_seconds() >= 1800):
+        events = _collect_dream_events(today)
+        if events:
+            rec = DREAMER.consolidate_and_save(events, today, diary=DIARY)
+            LAST_DREAM_DAY = today
+            (STATE_DIR / ".last_dream_day").write_text(today, encoding="utf-8")
+            print(f"[panshi] 夜间梦整合: {len(rec['clusters'])}簇 "
+                  f"{len(rec['connections'])}连接 残渣{len(rec['residue'])} "
+                  f"淡忘{len(rec['fade'])} 闪回{'有' if rec['flashback'] else '无'}", flush=True)
+
+
+def _inner_state():
+    """巡检只读口 /inner: 各内在模块的状态计数。私密日记【只给条数、绝不含正文】。"""
+    now = time.time()
+    out = {"shadow": "阶段1全影子: 只记录, 不改回复、不真外发; diary 只给条数不含正文",
+           "last_dream_day": LAST_DREAM_DAY}
+    try:
+        out["body"] = BODY.brief() if BODY else None
+    except (OSError, AttributeError):
+        out["body"] = None
+    try:
+        out["loops"] = ({"open": len(LOOP_BOOK.open_items()),
+                         "due": len(LOOP_BOOK.due(now=now)),
+                         "weight": LOOP_BOOK.weight(now)}) if LOOP_BOOK else None
+    except (OSError, AttributeError):
+        out["loops"] = None
+    out["diary_count"] = DIARY.count() if DIARY else None
+    out["editor_drafts"] = len(EDITOR.drafts()) if EDITOR else None
+    out["observer_n"] = OBSERVER.s.get("n") if OBSERVER else None
+    out["dreams"] = len(DREAMER.history()) if DREAMER else None
+    out["affect_source"] = AFFECT.source if AFFECT else None
+    return out
 
 
 # ---- 会话状态 + 热快照(P2) -----------------------------------------------
@@ -735,6 +885,18 @@ def maybe_proactive():
         text = _ark_once(build_system(HEART.mood_text()), prompt, 0.85)
         if not text:
             return "empty_text", None
+        # D编辑层影子: 主动发言先过一道把关并留痕, 但阶段1只记录、不拦截(照常发)
+        if EDITOR is not None:
+            try:
+                dec = EDITOR.review(
+                    {"text": text, "source": "思念主动", "channel": "private",
+                     "is_reply": False, "maturity": 0.9, "timing": 0.9},
+                    ctx={"night": not (8 * 60 <= mins < 23 * 60 + 30),
+                         "energy_level": BODY.s["level"] if BODY else None}, ts=now)
+                dec["shadow"] = True
+                _append_shadow("shadow_outbox.jsonl", dec)
+            except (OSError, ValueError, KeyError, AttributeError):
+                pass
     except (RuntimeError, OSError, ValueError, KeyError) as e:
         STATE["last_proactive_ok"] = False
         save_state(STATE)
@@ -924,6 +1086,11 @@ class Handler(BaseHTTPRequestHandler):
                            "daily_auto": BUDGET.daily_auto,
                            "warn_ratio": BUDGET.warn_ratio}},
                 ensure_ascii=False))
+        if u.path == "/inner":
+            # 七层内在机制巡检只读口: 状态计数(私密日记只给条数, 不含任何正文)
+            if not self._ok_token(qs):
+                return self._send(401, json.dumps({"err": "磐石口令不对"}))
+            return self._send(200, json.dumps(_inner_state(), ensure_ascii=False))
         self._send(404, json.dumps({"err": "no such path"}))
 
     def do_POST(self):
@@ -1027,6 +1194,43 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"err": str(e)}))
             except OSError as e:
                 return self._send(500, json.dumps({"err": f"分享本落盘失败:{type(e).__name__}"}))
+        if u.path == "/loop":
+            # 客体恒存事项簿: open 挂一件她要去做/约好的事, close 闭环落下, due 查到点的
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                return self._send(400, json.dumps({"err": "请求体不是合法JSON"}))
+            if LOOP_BOOK is None:
+                return self._send(503, json.dumps({"err": "事项簿未就位"}))
+            action = str(payload.get("action", "open"))
+            try:
+                if action == "open":
+                    item, is_new = LOOP_BOOK.open(
+                        payload.get("topic", ""), payload.get("detail", ""),
+                        float(payload.get("expect_after_s",
+                                          douchen_loops.DEFAULT_AFTER_S)),
+                        int(payload.get("importance", 1)))
+                    return self._send(200, json.dumps(
+                        {"ok": True, "item": item, "new": is_new}, ensure_ascii=False))
+                if action == "close":
+                    item = LOOP_BOOK.close(payload.get("id"),
+                                           payload.get("outcome", "做成了"))
+                    if HEART is not None:      # 闭环落下=真实的成长事件
+                        HEART.feel_v2("closed_loop", "挂着的事闭环了")
+                    return self._send(200, json.dumps(
+                        {"ok": True, "item": item}, ensure_ascii=False))
+                if action == "due":
+                    now = time.time()
+                    return self._send(200, json.dumps(
+                        {"ok": True, "due": LOOP_BOOK.due(now=now),
+                         "weight": LOOP_BOOK.weight(now)}, ensure_ascii=False))
+                return self._send(400, json.dumps({"err": f"未知action:{action}"}))
+            except (KeyError, ValueError) as e:
+                return self._send(400, json.dumps({"err": str(e)}))
+            except OSError as e:
+                return self._send(500, json.dumps(
+                    {"err": f"事项簿落盘失败:{type(e).__name__}"}))
         if u.path != "/say":
             return self._send(404, json.dumps({"err": "no such path"}))
         ip = self.client_address[0]
@@ -1054,6 +1258,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["turns"] = int(STATE.get("turns", 0)) + 1
             LAST_REBORN = ""    # 和她重新说上话了, 死亡记忆不再每轮重提
             save_state(STATE)  # 每轮落热快照
+            _shadow_record_exchange(text, reply)  # 七层影子: 耗精力/冷观察/情绪流, 不影响回复
             # 日志只留轮数/耗时/规模, 不记正文
             print(f"[panshi] 第{STATE['turns']}轮 本体{ms}ms "
                   f"消息{len(STATE['messages'])}条 沉淀{STATE['trimmed']}", flush=True)
@@ -1074,6 +1279,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     global STATE, HEART, LAST_REBORN, INTROSPECTOR, GROWTH, SELF_WORLD, SENSE_BOX, SHARE_BOOK
+    global BODY, LOOP_BOOK, DIARY, EDITOR, OBSERVER, DREAMER, AFFECT, LAST_DREAM_DAY
     ap = argparse.ArgumentParser(description="磐石常驻魂 P1+P2")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PANSHI_PORT", "8795")))
@@ -1114,6 +1320,19 @@ def main():
     SELF_WORLD = douchen_self.SelfWorld(str(STATE_DIR))
     SENSE_BOX = douchen_senses.Senses(str(STATE_DIR))
     SHARE_BOOK = douchen_share.ShareBook(str(STATE_DIR))
+    # 七层内在机制影子就位(2026-09-09 偷师全球同类开源): 只记录, 不改回复不外发
+    BODY = douchen_body.Body(str(STATE_DIR))
+    LOOP_BOOK = douchen_loops.LoopBook(str(STATE_DIR))
+    DIARY = douchen_diary.PrivateDiary(str(STATE_DIR))   # 密钥只从 PANSHI_PRIVATE_KEY 环境读
+    EDITOR = douchen_editor.Editor(str(STATE_DIR))
+    OBSERVER = douchen_observer.ColdObserver(str(STATE_DIR))
+    DREAMER = douchen_dream.Dreamer(str(STATE_DIR))
+    AFFECT = douchen_affect_dynamics.AffectDynamics()
+    _dream_flag = STATE_DIR / ".last_dream_day"
+    if _dream_flag.exists():
+        LAST_DREAM_DAY = _dream_flag.read_text(encoding="utf-8").strip()
+    print("[panshi] 七层内在机制影子就位: 身体/事项簿/加密私密日记/D编辑层/冷观察/夜梦/情绪流动"
+          "(阶段1只记录不改行为)", flush=True)
     DRIVE = douchen_drive.DriveEngine()
     threading.Thread(target=drive_loop, args=(DRIVE,), daemon=True).start()
     print("[panshi] 内生驱动力已点火、内省器就位, 她不在时我也自己转、自己问自己",
