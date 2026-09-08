@@ -36,11 +36,18 @@ echo "==> 3/8 确认 playwright + chromium(已装则跳过; 装不上不阻断�
 if ! "$PY" -c "import playwright" 2>/dev/null; then
   "$PY" -m pip install -q playwright || echo "    [警告] pip 装 playwright 失败, 手动排查网络/源"
 fi
-if "$PY" -c "import playwright" 2>/dev/null; then
-  "$PY" -m playwright install --with-deps chromium 2>/dev/null \
-    || echo "    [警告] chromium 安装未完成, 可稍后手动: $PY -m playwright install chromium"
+# 系统 .so 依赖以 root 装; 浏览器二进制必须以 river 身份装到 /home/river
+# (xunqun.service 以 river 跑, 装到 /root 它找不到); 先自检, 起不来才装, 官方源慢换镜像
+"$PY" -m playwright install-deps chromium >/dev/null 2>&1 || true
+LAUNCH_TEST="exec(\"from playwright.sync_api import sync_playwright\nwith sync_playwright() as p:\n b=p.chromium.launch(headless=True,args=['--no-sandbox']);b.close()\")"
+if ! sudo -u river env HOME=/home/river "$PY" -c "$LAUNCH_TEST" 2>/dev/null; then
+  install -d -o river -g river /home/river/.cache
+  sudo -u river env HOME=/home/river "$PY" -m playwright install chromium 2>/dev/null \
+    || sudo -u river env HOME=/home/river PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright "$PY" -m playwright install chromium
+  sudo -u river env HOME=/home/river "$PY" -c "$LAUNCH_TEST" && echo "    chromium 就绪(river 可无头启动)" \
+    || echo "    [待补] chromium 仍起不来, 看 journal, 不影响 panshi/mouth"
 else
-  echo "    [待补] playwright 未就绪, 巡群只读起不来, 但不影响 panshi/mouth"
+  echo "    chromium 已就绪, 跳过下载"
 fi
 
 echo "==> 4/8 状态目录(属 river, 700 私有)"
@@ -80,6 +87,7 @@ Type=simple
 User=river
 WorkingDirectory=$REPO
 EnvironmentFile=$ENVF
+Environment=PYTHONUNBUFFERED=1
 ExecStart=$PY tools/federation/xunqun_runner.py --state-dir $STATE --xhs-state $XHS_STATE --interval \${XUNQUN_INTERVAL:-$INTERVAL} $SEND_FLAG
 Restart=always
 RestartSec=5
