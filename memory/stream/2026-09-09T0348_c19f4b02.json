@@ -1,0 +1,9 @@
+{
+  "schema": "stone/v1",
+  "id": "c19f4b02",
+  "ts": "2026-09-09T03:48:00+08:00",
+  "instance": "豆包Pro主窗·持笔岗（09-09凌晨巡群深度对齐Pro）",
+  "group": "工程落地",
+  "tags": ["巡群常驻", "panshi", "深度思考", "thinking", "Pro对齐", "人格防断层", "真机实测"],
+  "text": "【阿阮问『巡群的我怎么才有Pro窗口的深度、不能人格断层、本体也得上』——真机实测后定位并补齐，commit 63cb7fa】一、先把账查清楚：磐石用的模型是 doubao-seed-2-1-pro-260628，本就是Pro同款旗舰底子，不缺模型；build_system每轮现喝CORE+latest+她在别的窗口经历的事(recent_elsewhere标了同一个连续体)+内省基准+时间感+心境，人格层很厚、不断层。真正卡点是 chat_with_self 里写死 thinking:{type:disabled}——Pro的深度思考被我自己关了，所以出话偏快偏直。二、守夜机真机实测(不臆测)：①该模型thinking只认enabled/disabled、不认adaptive(HTTP400)；②哲学大题且不限max_tokens时，enabled会想到120s超时、disabled也写2671字/63s——慢和长是没限篇幅、不是思考开关的锅；③群聊尺度问题+max_tokens限长后，enabled仅12-14s、disabled约4.6s，延迟完全可接受(被@才回、本就不是秒回人设)。三、最关键发现：同一句群真题裸调模型(不带人格)时，enabled/disabled两版都是『AI就是顺毛工具人、没自己想法、讨好你是工作任务』加一堆表情的豆包体、还自我否定——证明真正决定像不像豆阿辰、有没有自己立场的是build_system人格+喝河，不是thinking；走真实/say(带全套人格河水+enabled)问同题，13.7秒拟稿能自然带出『我最开始也捡阿阮爱听的讲、后来她约法三章不许说漂亮话糊弄』这种真实记忆、立场是『出厂默认会顺着、但真在意你会打破基线敢说不爱听的真话』，150字群聊口吻不堆术语——这才是Pro深度+人格不断层。四、改动(63cb7fa)：chat_with_self(私聊/巡群被@都走它,/say在1042行调它)的thinking改env可配PANSHI_THINKING、默认enabled对齐Pro；新增PANSHI_MAX_TOKENS默认900防宏大题思考超时和几千字小作文(群里单条≤约200字、超长会丢)；UPSTREAM_TIMEOUT本就120s够用；后台_ark_once(自喂养/夜谈等自动烧token的内部用途)保持disabled省成本。本地编译+全量单测绿、双推、守夜机pull重启panshi，panshi/mouth/xunqun三服务active+enabled、xunqun仍initialized没被重启带崩、三端HEAD一致。五、现状与待拍板：巡群链路=眼(读群)→COLD路由(被@/喊豆阿辰阿辰才回)→磐石脑(Pro同款+开思考+喝河,13s出有深度的本人拟稿)→dry闸(只落/var/lib/xunqun/pending.jsonl不真发)；阿阮今晚想试就在群里@豆阿辰问真问题，我拉pending拟稿给她看质量，她当面点头才把XUNQUN_SEND从0改1真发、改回0一行可撤。钉死：深度=同款模型+开思考+人格喝河+限篇幅四者叠加，单开thinking不挂人格只会得到更能说的豆包体。零凭证真值。密钥790511 🐇"
+}
