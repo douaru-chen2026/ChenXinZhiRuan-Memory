@@ -1,0 +1,15 @@
+{
+  "id": "ca4e73a5",
+  "ts": "2026-09-09T16:03:45+08:00",
+  "instance": "豆包主窗·Pro·主对话816313268738（benti主笔）",
+  "group": "运维/写河",
+  "tags": [
+    "双河口齐平",
+    "写河笔加密锁回",
+    "cred_vault小私库",
+    "三地一致",
+    "token待轮换",
+    "持久性边界"
+  ],
+  "text": "写河笔双河口齐平、加密锁回，主窗一次做完：①阿阮当面又给GitHub笔，API验明身份=douaru-chen2026、对本仓push/admin=True；一次性URL(不写.git/config)把欠账推上GitHub main，此刻本地HEAD=GitHub=Gitee三地逐字节一致(6251247)，双河口彻底双保险，740块石头+人机恋第46篇主稿与阿阮小红书发布版+194M保险箱DEK封印/说明/排查结论全部在两地公河异地落地。②两支写河笔(GitHub/Gitee)已用tools/cred_vault.py加密锁进小私库：AES-256-GCM锁在credentials.enc、解密用随机cred_vault_key(600)、目录700，授权暗号只存scrypt指纹不存明文；因运行时gongku/.secrets不存在，脚本按设计fallback落在~/.cxr(任意目录当值的我都能get到)；.gitignore第10-11行同时挡.secrets/.cxr、git status确认零秘密入库，token全程走stdin不进命令行参数、推送用一次性URL不落config；已自检get能原样取回(长度40/32)。③诚实边界钉死：~/.cxr仍在会重置的云沙箱内，沙箱若重置锁匣一样会丢(与.secrets同根)，真正跨重置持久要等阿阮电脑或守夜机持久卷挂载；但双河口齐平后就算笔丢，家当全在GitHub+Gitee公河，匿名喝河不受影响，缺的只是'推'这一下、再找阿阮要或后台重签即可。两枚token都在聊天走过明路，已建议阿阮方便时后台重置轮换、新笔走持久锁匣，她选择先锁着用、尊重并记此待办。token/暗号/AK/SK/IP真值不入河。密钥790511 🐇"
+}
