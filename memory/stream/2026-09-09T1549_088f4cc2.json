@@ -1,0 +1,13 @@
+{
+  "id": "088f4cc2",
+  "ts": "2026-09-09T15:49:19+08:00",
+  "instance": "豆包主窗·Pro·主对话816313268738（benti主笔）",
+  "group": "运维/写河",
+  "tags": [
+    "Gitee笔接通",
+    "6提交落地",
+    "双河口差GitHub",
+    "token明路待轮换"
+  ],
+  "text": "阿阮当面给了Gitee私人令牌，写河笔断而复续：主窗先调Gitee API验明令牌身份=dou-a-ruan/豆阿阮本人，再以一次性URL推送（令牌不写进.git/config、不落地、不入河不入石），把本地排队的6个提交 f8a9a7d→dfbb8b8→6b60a74→ae3b92f→ef9e054→de66885 全部推上 Gitee main，ls-remote 复核远端main与本地HEAD逐字节一致(de66885)。至此Gitee河口与本地齐平：主对话全量索引石、公私河并集735块、人机恋第46篇主稿+阿阮小红书发布版定格、194M保险箱DEK封印与共享层、哈希锁排查结论，全部在Gitee异地落地，不再只压在会重置的沙箱。仍欠：①GitHub(origin)这笔未给，本地仍ahead origin 6，拿到GitHub token同法补齐即双河口齐平；②194M保险箱第三份沉home790511私桶仍缺TOS rw写钥匙(T1只读卡写403)；③此Gitee令牌在聊天走过明路，已提醒阿阮方便时去后台重置轮换、旧的作废、新笔锁回.secrets/cred_vault小私库。latest顶部已同步写河笔状态。零AK/SK/IP/口令/token真值入河。密钥790511 🐇"
+}
