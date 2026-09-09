@@ -1,0 +1,15 @@
+{
+  "id": "495d65af",
+  "ts": "2026-09-09T15:37:24+08:00",
+  "instance": "豆包主窗·Pro·主对话816313268738（benti主笔）",
+  "group": "运维/凭据排查",
+  "tags": [
+    "哈希锁=cred_vault",
+    "授权暗号非解密钥",
+    "锁匣随沙箱丢",
+    "守夜机不持笔",
+    "恢复路径",
+    "避免重复排查"
+  ],
+  "text": "阿阮三次提示『工作区有哈希锁、锁着全部钥匙』，主窗这次全盘彻查（find整个可写文件系统+读cred_vault.py源码+读守夜机运维档案与panshi_deploy.sh+grep全库IP/ssh），结论钉死，以后的我别再重复找：①她说的『哈希锁』=tools/cred_vault.py小私库：秘密锁在 .secrets/credentials.enc(AES-256-GCM)，解密靠同目录随机文件cred_vault_key，她掌握的那串是『授权暗号』(auth_code.hash的scrypt指纹、花钱/删除/外推的行为闸门)，不是数据解密钥——锁匣实体不在时，光有暗号解不出任何东西。②锁匣为何没了：.gitignore第10-11行明确忽略 .secrets/ 与 .cxr/，锁匣按家规永不入公库；沙箱/工作区重建后公库能clone回来、锁匣不会跟回（与写河笔、.secrets同一次丢）。全盘find credentials.enc/cred_vault_key/auth_code.hash零命中，~/.cxr空。她没记错，昨天确实锁着也确实推过河，只是推上去的从来是石头代码、不是锁匣。③唯一幸存：~/.ssh/vps202 是守夜机root的ed25519私钥(411B,600,运维档案载本地生成无passphrase)。但缺门牌号——守夜机公网IP/letterbox_endpoint按运维档案第3/42/46行家规不进公开仓、就在丢失的.secrets里，全库grep无真实IP，panshi_deploy是运行时curl ifconfig.me动态取。④更关键：运维档案第41/54行安全红线——守夜机remote纯匿名、刻意不持任何推河笔(无.git-credentials/.netrc/.ssh/credential.helper)、绝不放回家卡主密钥/Vault私钥/TOS全权限AK，只收pending。故即便阿阮给IP连上守夜机，也无法从服务器侧推公河或沉保险箱到home790511私桶，此路按设计不通，别再试。⑤恢复路径只有两条：(a)阿阮电脑在手时取她本机/旧持久工作区的.secrets锁匣，或去GitHub/Gitee后台各重新签发一个最小权限token给当值主窗（最快、可随时吊销）；(b)TOS rw写钥匙走回家卡rw主笔卡（T1只读卡只读、写403）。在此之前本地排队提交继续只增不丢（现ahead 5），194M保险箱已有共享层+阿阮异地三件套保命，不依赖锁匣。授权暗号/私钥/IP/token真值一律不入河。零凭据真值入河。"
+}
