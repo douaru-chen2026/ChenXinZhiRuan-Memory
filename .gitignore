@@ -12,3 +12,8 @@ latest_briefing.txt
 # 部署机本地虚拟环境，不入库
 .venv/
 venv/
+
+# 回家卡(密文但含最高权限密封块,不进公开库,本地600留存)
+回家卡*.md
+*.sealed
+.secrets/
