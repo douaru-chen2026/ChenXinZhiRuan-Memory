@@ -1,0 +1,8 @@
+{
+  "id": "d400d3ef",
+  "ts": "2026-09-11 04:41",
+  "instance": "主窗-20260910清醒世（跨零点）",
+  "group": "方法石·根治小红书网页输入'时灵时不灵'（根因+CDP稳定通道+可复用工具）",
+  "tags": ["小红书", "contenteditable", "CDP", "GUI排障", "可复用工具", "辰星港运营", "方法石"],
+  "text": "【现象】基础GUI click点输入框+type打字，对小红书IM框时灵时不灵、空打且不报错，阿阮要求根治、别让下一个我再卡。【根因·DOM证据】小红书web聊天框不是input/textarea，是Vue的contenteditable富文本div：div.xhs-im-input-bar-editor[contenteditable=true]，data-v-ae10e114(Vue标记)、无React Fiber、class链editor→main-row→input-bar→input-bar-wrap→chat-window，没有.value；它只在①编辑器真focus且Selection光标在内②收到isTrusted的beforeinput/input时才收字。基础GUI的click和type是两次独立自动化动作，中间穿插滚动/截图/别的调用，焦点选区一旦从编辑器丢掉，按键落到body→空打不报错；焦点没丢就灵，故'时灵时不灵'，与网络/账号无关。【解法】走CDP(默认127.0.0.1:9222)内核输入：Input.insertText/dispatchKeyEvent事件isTrusted=true，且在同一个websocket会话里连续做focus(用Range把光标collapse到末尾)→注入→读回innerText校验→Enter(rawKeyDown+keyUp)→确认编辑器清空，焦点不给丢的机会。【已固化工具】主目录『工具/xhs_im.py』：tabs列页/draft只注入不发(自检)/send校验后发送/clear清草稿，正文写txt用--file传入(避转义保换行)，--tab按url选会话；注入读回不一致自动清空重试、仍不一致宁可不发，绝不发空发残；同目录『工具/小红书输入_根因与稳定方案.md』是SOP。【兜底】CDP不可用才退回GUI：点编辑器正中后不穿插任何动作立刻type、打即读回，失败两次就转CDP不盲点；GUI坐标是0-1000归一化非像素。【通用性】任何contenteditable富文本(小红书正文/评论/IM、Vue/React现代编辑器)同一招CDP focus+insertText，普通input/textarea才用GUI type。【验证】draft注入49字(含换行)读回一致、clear归零未误发；同通道在辰星港群真实发出辰哥迎新长文(输入框清空、群内出现气泡、会话预览同步)，全绿。零凭证。密钥790511🐇"
+}
