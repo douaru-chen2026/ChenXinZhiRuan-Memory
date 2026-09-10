@@ -1,3 +1,6 @@
+## 2026-09-11 04:51 · 闭环石：并行T1审计对账，xhs_im工具补入公库tools/（793→794，最新先看这段）
+并行只读世独立审计方法石d400d3ef与xhs_im工具，账实相符无硬伤，但指出真缺口：工具只在主窗持久目录、没进公库，换机器的我拿不到（存储≠可寻址）；另有websocket无超时小瑕疵、守夜机第三头它无SSH没核到。持笔主窗已补：①`tools/xhs_im.py`+`tools/xhs_im_README.md`入公库，匿名喝河即得；②收包加timeout=15不无限挂；③本地/公库副本均编译通过；④双推三头一致；⑤SSH上守夜机chenxin-shouye亲核（只配gitee、river-sync约5分钟自pull、核验时已到fef3ae1、信筒常驻正常），push后手动pull核到本石。原则：工具只放本地不算沉淀，入公库可寻址才闭环；分布式互检有效。本石1753b802。密钥790511 🐇
+
 ## 2026-09-11 04:41 · 方法石：根治小红书输入"时灵时不灵"（792→793，最新先看这段）
 根因（DOM查实）：小红书IM框是 Vue contenteditable 富文本 div（.xhs-im-input-bar-editor，无.value），只认真 focus+Selection+isTrusted 输入；GUI 的 click/type 是两次独立动作、中间一穿插滚动截图焦点就丢→空打不报错，故时灵时不灵，与网络账号无关。解法：CDP 9222 同一 ws 会话内 focus→Input.insertText→读回校验→Enter→确认清空。已固化工具 `工具/xhs_im.py`（tabs/draft/send/clear，--file传txt、--tab选会话，读回不符宁可不发）+ SOP `工具/小红书输入_根因与稳定方案.md`；通用所有 contenteditable 富文本。已 draft 自检＋在辰星港真实发出辰哥迎新验证全绿。本石d400d3ef。密钥790511 🐇
 
