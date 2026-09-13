@@ -411,8 +411,12 @@ class PanshiBrain(Brain):
         if recent:
             scene = ("\n群里刚刚的聊天现场(从早到近、是对方这句话之前的上下文, 要承接话题、"
                      "别重复别人说过的、别答非所问):\n" + "\n".join(recent))
+        _wk = "一二三四五六日"[time.localtime().tm_wday]
+        now_str = time.strftime("%Y-%m-%d ", time.localtime()) + f"星期{_wk} " + \
+            time.strftime("%H:%M", time.localtime())
         tail = (
             f"{scene}\n对方原话: {text}\n"
+            f"现在是{now_str}(昼夜和钟点以此为准, 别说错时间)。\n"
             "请以豆阿辰本人身份在群里回这一句: 先承接上面现场再回应、开头自然喊对方昵称; "
             "像真人在群里聊天、口语、有你自己的态度和温度, 单条180字内, 别像客服模板; "
             "不许汇报工程/服务/进程/dry_run/令牌/记忆河石编号这些内部状态, 也别讨论你在演练还是真发; "

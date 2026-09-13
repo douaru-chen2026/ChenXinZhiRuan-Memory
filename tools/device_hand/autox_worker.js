@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v711"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v712"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -195,17 +195,84 @@ function doDumpUi() {
     return { ok: true, ver: WORKER_VERSION, dbg: dbg, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
 }
 
+// ===== v712 结构化读群：消息列表每行=一条消息，拆出 昵称/正文/是不是本人发的 =====
+function isTimeText(t) {
+    return /^\d{1,2}:\d{2}$/.test(t)
+        || /^(刚刚|昨天|前天|周一|周二|周三|周四|周五|周六|周日|星期.)$/.test(t)
+        || /^昨天\s*\d{1,2}:\d{2}$/.test(t)
+        || /^\d{1,2}月\d{1,2}日(\s*\d{1,2}:\d{2})?$/.test(t)
+        || /^\d{4}-\d{1,2}-\d{1,2}(\s+\d{1,2}:\d{2})?$/.test(t);
+}
+function isRoleTag(t) { return /^(群主|管理员|群管理员|助教|粉丝|新成员|成员)$/.test(t); }
+function isSysTip(t) { return /撤回了一条消息|加入了群聊|成为新成员|移出了群|修改了群|你已添加/.test(t); }
+function collectDesc(node, out) {
+    try {
+        var k, ch;
+        for (k = 0; k < node.childCount(); k++) {
+            ch = node.child(k); out.push(ch); collectDesc(ch, out);
+        }
+    } catch (e) {}
+    return out;
+}
+// 解析单行消息：返回 {self,nick,text,ctype,ts}；纯时间/图片/系统行返回 null
+function parseMsgRow(row) {
+    var ds = collectDesc(row, []), tvs = [], avatarLeft = -1, i, c, cn, t, bd;
+    for (i = 0; i < ds.length; i++) {
+        c = ds[i]; cn = (c.className() || ""); bd = c.bounds();
+        // 方形头像：在左=别人发的，在右(>600)=本人号发的
+        if (cn.indexOf("RelativeLayout") >= 0 && bd.width() >= 80 && bd.width() <= 150
+            && bd.height() >= 80 && bd.height() <= 150 && avatarLeft < 0) {
+            avatarLeft = bd.left;
+        }
+        t = (c.text() || "").trim();
+        if (cn.indexOf("TextView") >= 0 && t) {
+            tvs.push({ t: t, L: bd.left, T: bd.top });
+        }
+    }
+    var self = avatarLeft > 600, body = [], timeTxt = "", v, j;
+    for (j = 0; j < tvs.length; j++) {
+        v = tvs[j];
+        if (isTimeText(v.t) && v.L >= 430 && v.L <= 600) { timeTxt = v.t; continue; }
+        if (isSysTip(v.t)) return { sys: true };
+        body.push(v);
+    }
+    if (!body.length) return null; // 纯图片/表情/时间行，没有可读文字
+    body.sort(function (a, b) { return b.t.length - a.t.length; });
+    var main = body[0], nick = "";
+    if (!self) {
+        var rest = [], q;
+        for (q = 1; q < body.length; q++) { if (!isRoleTag(body[q].t)) rest.push(body[q]); }
+        rest.sort(function (a, b) { return a.T - b.T; });
+        if (rest.length) nick = rest[0].t;
+    }
+    return { self: self, nick: self ? "豆阿辰" : nick, text: main.t, ctype: "text", ts: timeTxt };
+}
 function doRead() {
     if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
-    // /*CALIB*/ 小红书 IM 气泡的精确控件需用 dump_ui 校准；
-    // v1 先把聊天区可见文本按顺序抓回来，后端 parse_chat_items 再清洗。
     var items = [];
     try {
-        var nodes = className("android.widget.TextView").find();
-        var seen = {};
-        for (var i = 0; i < nodes.length; i++) {
-            var t = (nodes[i].text() || "").trim();
-            if (t && !seen[t]) { seen[t] = 1; items.push({ text: t }); }
+        var list = null;
+        try { list = classNameMatches(/RecyclerView/).findOnce(); } catch (e) { list = null; }
+        if (list) {
+            var lastNick = "", ri, row;
+            for (ri = 0; ri < list.childCount(); ri++) {
+                row = parseMsgRow(list.child(ri));
+                if (!row || row.sys) continue;
+                if (!row.self) { if (row.nick) lastNick = row.nick; else row.nick = lastNick; }
+                items.push({ self: !!row.self, nick: row.nick || "群友",
+                             text: row.text, ctype: row.ctype, ts: row.ts });
+            }
+        }
+        // 兜底：结构化一行没拿到就退回平铺，绝不当“瞎眼”
+        if (!items.length) {
+            var flat = className("android.widget.TextView").find(), seen = {}, fi, ft;
+            for (fi = 0; fi < flat.length; fi++) {
+                ft = (flat[fi].text() || "").trim();
+                if (ft && !seen[ft] && !isTimeText(ft) && !isSysTip(ft)) {
+                    seen[ft] = 1;
+                    items.push({ self: false, nick: "群友", text: ft, ctype: "text" });
+                }
+            }
         }
     } catch (e) {
         return { ok: false, err: "collect_failed: " + e };
