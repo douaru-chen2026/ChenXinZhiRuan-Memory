@@ -45,13 +45,12 @@ function loadConfig() {
     return cfg;
 }
 
-// 首次/缺配置时逐项询问，写回本地
+// 每次启动都逐项把配置弹出来确认（输入框预填上次的值：对就直接确定，错就改，
+// token 这类长串建议从取件箱文本里长按复制粘贴，避免手抄错一两个字符被秒拒）
 function ensureConfig() {
-    var need = [];
-    if (!CFG.host) need.push(["host", "守夜机地址（IP 或域名）"]);
-    if (!CFG.token) need.push(["token", "device_gateway 口令"]);
-    need.forEach(function (item) {
-        var v = dialogs.rawInput("配置 · " + item[1] + "\n（只存在本机，不上传）", CFG[item[0]] || "");
+    var fields = [["host", "守夜机地址（IP 或域名）"], ["token", "device_gateway 口令"]];
+    fields.forEach(function (item) {
+        var v = dialogs.rawInput("配置 · " + item[1] + "\n（只存在本机，不上传；长按输入框可粘贴）", CFG[item[0]] || "");
         if (v === null) v = "";
         CFG[item[0]] = v.trim();
         STORE.put(item[0], CFG[item[0]]);
