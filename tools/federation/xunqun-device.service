@@ -10,9 +10,10 @@ WorkingDirectory=/home/river/ChenXinZhiRuan-Memory
 EnvironmentFile=/etc/council/env
 Environment=PYTHONUNBUFFERED=1
 # 真机通道：专用安卓机的 AutoX 工人经 device_gateway 读/发辰星港。
-# 注意：不带 --send 就是影子模式——只读群、只把拟稿落 pending.jsonl，绝不外发；
-#       真发必须显式加 --send 且 device_gateway 发送总闸置 1（双闸同时满足才会发）。
-ExecStart=/home/river/ChenXinZhiRuan-Memory/.venv/bin/python3 tools/federation/xunqun_runner.py --reader device --state-dir /var/lib/xunqun/device_shadow --interval 60
+# 真发=双闸同时开：①本服务带 --send；②device_gateway 总闸 DEVICE_SEND_ENABLED=1。
+#   只影子不外发就去掉 --send；要一键急停就把总闸置 0 并 restart device-gateway。
+# 缰绳：--cooldown 两次开口最小间隔；--hour-cap 每小时封顶；连续发送失败自动熔断。
+ExecStart=/home/river/ChenXinZhiRuan-Memory/.venv/bin/python3 tools/federation/xunqun_runner.py --reader device --state-dir /var/lib/xunqun/device_shadow --interval 60 --send --cooldown 90 --hour-cap 8
 Restart=always
 RestartSec=10
 

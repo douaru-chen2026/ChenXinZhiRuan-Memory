@@ -32,30 +32,95 @@ DEFAULT_DEVICE_INTERNAL = "http://127.0.0.1:37962"
 DEFAULT_DEVICE_GROUP = "辰星港"
 
 
-def step_once(reader, bridge, seen, group, state, dry_send=True):
-    """跑一轮。返回 {'baseline'|'new': n, 'results': [...]}。纯编排可单测。
+class SendThrottle:
+    """真发缰绳(状态进 state, 随 runner_state 持久化):
+    - cooldown: 两次开口最小间隔, 防连环刷屏;
+    - hour_cap: 每个自然小时最多发几条;
+    - fail_trip: 连续发送失败这么多次就熔断, 之后只落 pending 不再外发,
+      直到人工 --reset-throttle 复位(宁可不回, 也不在 79 人家里失控)。"""
+
+    def __init__(self, state, cooldown=90, hour_cap=8, fail_trip=2):
+        self.state = state
+        self.cooldown = cooldown
+        self.hour_cap = hour_cap
+        self.fail_trip = fail_trip
+        self.s = state.setdefault("throttle", {})
+
+    def allow(self, now=None):
+        now = int(now or time.time())
+        if self.s.get("tripped"):
+            return "tripped"
+        hb = now // 3600
+        if self.s.get("hour_bucket") != hb:
+            self.s["hour_bucket"] = hb
+            self.s["hour_count"] = 0
+        if self.s.get("hour_count", 0) >= self.hour_cap:
+            return "hour_cap"
+        if now - int(self.s.get("last_send_ts", 0)) < self.cooldown:
+            return "cooldown"
+        return "ok"
+
+    def note_sent(self, now=None):
+        now = int(now or time.time())
+        self.s["last_send_ts"] = now
+        if self.s.get("hour_bucket") != now // 3600:
+            self.s["hour_bucket"] = now // 3600
+            self.s["hour_count"] = 0
+        self.s["hour_count"] = self.s.get("hour_count", 0) + 1
+        self.s["fails"] = 0
+
+    def note_fail(self):
+        self.s["fails"] = self.s.get("fails", 0) + 1
+        if self.s["fails"] >= self.fail_trip:
+            self.s["tripped"] = True
+
+    def reset(self):
+        self.s.clear()
+
+
+def step_once(reader, bridge, seen, group, state, dry_send=True, throttle=None,
+              per_tick_cap=1):
+    """跑一轮。返回 {'baseline'|'new': n, 'results': [...], 'sent': n}。纯编排可单测。
 
     reader: 有 read_latest(group) 与(非 dry 时)send_one(group,text);
-    bridge: xb.Bridge; seen: xb.SeenStore; state: 持久 dict(存 initialized)。
-    dry_send=True 时即便脑 ready 也只落 pending、不真的往群里发。
+    bridge: xb.Bridge; seen: xb.SeenStore; state: 持久 dict(存 initialized/缰绳);
+    dry_send=True 时即便脑 ready 也只落 pending、不真的往群里发;
+    throttle: 非 dry 时的发送缰绳(冷却/小时封顶/失败熔断), 可空。
     """
     msgs = reader.read_latest(group)
     if not state.get("initialized"):
         for m in msgs:
             seen.is_new(m)
         state["initialized"] = True
-        return {"baseline": len(msgs), "results": []}
+        return {"baseline": len(msgs), "results": [], "sent": 0}
 
     new_msgs = [m for m in msgs if seen.is_new(m)]
     # 整批 msgs 作为现场上下文一起给桥, 让脑看到被@那句之前群里在聊什么(治客服腔)
     results = bridge.tick(new_msgs, recent_pool=msgs)
+    sent = 0
     if not dry_send:
         for r in results:
             if r.get("status") != "ready":
                 continue
             for line in r.get("lines", []):
-                reader.send_one(group, line)
-    return {"new": len(new_msgs), "results": results}
+                if sent >= per_tick_cap:
+                    r["throttled"] = "per_tick_cap"
+                    break
+                if throttle is not None:
+                    verdict = throttle.allow()
+                    if verdict != "ok":
+                        r["throttled"] = verdict
+                        continue
+                try:
+                    reader.send_one(group, line)
+                    sent += 1
+                    if throttle is not None:
+                        throttle.note_sent()
+                except Exception as exc:  # noqa: BLE001 发送失败记账, 达阈值熔断
+                    if throttle is not None:
+                        throttle.note_fail()
+                    r["send_error"] = str(exc)[:120]
+    return {"new": len(new_msgs), "results": results, "sent": sent}
 
 
 def build_bridge(state_dir, dry_run, send_mode):
@@ -101,6 +166,10 @@ def main():  # pragma: no cover - 真机常驻
                     help="device=专用真机走device_gateway; web=无头网页登录态")
     ap.add_argument("--device-internal", default=DEFAULT_DEVICE_INTERNAL)
     ap.add_argument("--device-group", default=DEFAULT_DEVICE_GROUP)
+    ap.add_argument("--cooldown", type=int, default=90, help="真发两次开口最小间隔秒")
+    ap.add_argument("--hour-cap", type=int, default=8, help="每自然小时最多真发条数")
+    ap.add_argument("--reset-throttle", action="store_true",
+                    help="启动时清掉发送熔断/计数(人工排障后复位)")
     args = ap.parse_args()
 
     sd = Path(args.state_dir)
@@ -113,6 +182,10 @@ def main():  # pragma: no cover - 真机常驻
     # 真机通道是豆阿辰本人号发言, 摘“代发前缀”; 网页通道维持代发期口径
     send_mode = xb.OFFICIAL if args.reader == "device" else xb.PROXY
     bridge = build_bridge(sd, dry_run=not args.send, send_mode=send_mode)
+    throttle = SendThrottle(state, cooldown=args.cooldown, hour_cap=args.hour_cap)
+    if args.reset_throttle:
+        throttle.reset()
+        print("[runner] 已复位发送缰绳(冷却/封顶/熔断清零)", flush=True)
     log = sd / "run.jsonl"
 
     def save_state():
@@ -156,7 +229,10 @@ def main():  # pragma: no cover - 真机常驻
                     standby_announced = False
                 state.pop("standby", None)
                 out = step_once(reader, bridge, seen, args.group, state,
-                                dry_send=not args.send)
+                                dry_send=not args.send, throttle=throttle)
+                if state.get("throttle", {}).get("tripped"):
+                    print("[runner] 发送已熔断(连续失败), 转只拟稿不外发, 待 --reset-throttle",
+                          flush=True)
                 if out.get("results") or out.get("baseline"):
                     with log.open("a", encoding="utf-8") as f:
                         f.write(json.dumps({"ts": int(time.time()), **out},
