@@ -23,6 +23,7 @@ class TestSafeName(unittest.TestCase):
     def test_ext_lowercased_check(self):
         # 大写扩展名也放行（判断时转小写），但只认白名单
         self.assertIsNotNone(P.safe_name("A.PNG"))
+        self.assertIsNotNone(P.safe_name("AutoX.apk"))   # 安装包白名单
         self.assertIsNone(P.safe_name("a.txt"))
         self.assertIsNone(P.safe_name("a.exe"))
         self.assertIsNone(P.safe_name("noext"))
@@ -137,6 +138,29 @@ class TestHTTP(unittest.TestCase):
 
     def test_pic_needs_token(self):
         self.assertEqual(self._get("/pic/x.png")[0], 403)
+
+    def test_apk_is_download_not_inline(self):
+        Path(self.tmp, "AutoX.apk").write_bytes(b"PK\x03\x04fake")
+        # 列表里 apk 给 /raw 下载卡，不套 /pic 图片预览
+        _, _, idx, _ = self._get(f"/?t={TOKEN}")
+        self.assertIn(b"/raw/AutoX.apk", idx)
+        self.assertNotIn(b"/pic/AutoX.apk", idx)
+        # /raw：apk MIME + attachment，字节原样
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request("GET", f"/raw/AutoX.apk?t={TOKEN}")
+        r = c.getresponse(); body = r.read()
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.getheader("Content-Type"),
+                         "application/vnd.android.package-archive")
+        self.assertIn("attachment", r.getheader("Content-Disposition") or "")
+        self.assertTrue(body.startswith(b"PK"))
+        c.close()
+        # 即便误走 /pic，apk 也强制附件、不内联
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request("GET", f"/pic/AutoX.apk?t={TOKEN}")
+        r = c.getresponse(); r.read()
+        self.assertIn("attachment", r.getheader("Content-Disposition") or "")
+        c.close()
 
 
 if __name__ == "__main__":

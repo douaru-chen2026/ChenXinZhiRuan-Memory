@@ -17,12 +17,12 @@ pic_inbox.py —— 辰心知阮 · 取件箱（阿辰做好的图，递到阿�
   GET /              ?t=口令 列表页（首次用带 ?t= 的完整链接口令，会种 HttpOnly
                             cookie，90 天内从家门点进来不用再带口令）
   GET /pic/<名字>    ?t=口令 内联显示原图（方便长按"存储图像"）；也认 cookie
-  GET /raw/<名字>    ?t=口令 附件下载（备用，文件名走 RFC5987）
+  GET /raw/<名字>    ?t=口令 附件下载（apk 安装包走这里，文件名走 RFC5987）
 
 安全（写死，对齐 device_gateway）：
   * 除 /health 外都要口令，hmac 恒定时间比较；口令只从环境变量读、绝不入库；
   * 文件名白名单 + 强制 basename + 解析后必须仍在收件目录内，堵死 ../ 穿越；
-  * 只收图片扩展名白名单，不递归子目录、不列点文件、列表数量封顶；
+  * 扩展名白名单（图片 + apk 安装包），不递归子目录、不列点文件、列表数量封顶；
   * 文件名渲染一律 html.escape，堵注入；静默访问日志，绝不把 query/口令写进日志。
 纯标准库，无第三方依赖，核心逻辑可被 unittest 锁死（见 tests/test_pic_inbox.py）。
 """
@@ -40,10 +40,13 @@ from urllib.parse import urlparse, parse_qs, quote, unquote
 # ---- 配置（全部可被环境变量覆盖；真值只从 env / 仓外读，绝不入库） ----------
 DEFAULT_PORT = 8797
 DEFAULT_DIR = "/var/lib/pic_inbox"
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+# 图片 + 安卓安装包（安装包只用于把 AutoX 等可靠 apk 递到阿阮手机，走附件下载）
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_EXT = IMAGE_EXT | {".apk"}
 CTYPE = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
     ".webp": "image/webp", ".gif": "image/gif",
+    ".apk": "application/vnd.android.package-archive",
 }
 LIST_LIMIT = 100                 # 一页最多列多少张，最新在前
 COOKIE_NAME = "pict"
@@ -129,7 +132,17 @@ def render_index(items):
     for name, mtime, size in items:
         e = html.escape(name, quote=True)    # 显示文本做 HTML 转义
         u = quote(name, safe="")             # 链接路径做规范 percent 编码(兼容中文)
-        cards.append(f"""
+        ext = os.path.splitext(name)[1].lower()
+        if ext == ".apk":
+            # 安装包不是图，走 /raw 附件下载卡，不套 <img> 预览
+            cards.append(f"""
+ <a class="card apk" href="/raw/{u}">
+   <div class=apki>📲</div>
+   <div class=meta><span class=nm>{e}</span>
+   <span class=info>{fmt_time(mtime)} · {human_size(size)} · 点这里下载，下完点开安装</span></div>
+ </a>""")
+        else:
+            cards.append(f"""
  <a class=card href="/pic/{u}">
    <img loading=lazy src="/pic/{u}" alt="">
    <div class=meta><span class=nm>{e}</span>
@@ -156,6 +169,8 @@ h1{{font-size:21px;text-align:center;margin:8px 0 4px;letter-spacing:1px}}
  border:1px solid rgba(255,255,255,.13);border-radius:16px;overflow:hidden;
  margin-bottom:14px;text-decoration:none;color:inherit}}
 .card img{{display:block;width:100%;height:auto;background:#0f0820}}
+.card.apk{{border-color:rgba(120,220,160,.4)}}
+.apki{{font-size:42px;text-align:center;padding:28px 0 10px;background:#0f0820}}
 .meta{{padding:10px 13px}}
 .nm{{display:block;font-size:13.5px;font-weight:700;margin-bottom:4px;
  word-break:break-all}}
@@ -252,9 +267,10 @@ def make_handler(inbox_dir, token):
             ctype = CTYPE.get(ext, "application/octet-stream")
             headers = [("Last-Modified", formatdate(target.stat().st_mtime,
                                                     usegmt=True))]
-            if inline:
+            if inline and ext in IMAGE_EXT:
                 headers.append(("Content-Disposition", "inline"))
             else:
+                # 图片走 /raw 或安装包（apk 无法内联）一律附件下载
                 headers.append(("Content-Disposition",
                                 f"attachment; filename*=UTF-8''{quote(name)}"))
             # query 里带口令访问图片时顺手补 cookie，后续靠 cookie
