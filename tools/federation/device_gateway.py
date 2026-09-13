@@ -59,9 +59,13 @@ INTERNAL_WAIT_SECONDS = 40      # runner 等结果最长时间
 MAX_SEND_CHARS = 500            # 单条发送字数硬顶
 MAX_IMG_URL_LEN = 512           # 图片地址长度硬顶
 ALLOWED_URL_SCHEMES = ("http://", "https://")
-ALLOW_OPS = ("read_group", "send_group", "send_group_image", "ping", "dump_ui", "probe_send")
-# 发送类指令（都要过发送双闸）
-SEND_OPS = ("send_group", "send_group_image")
+ALLOW_OPS = ("read_group", "send_group", "send_group_image", "ping", "dump_ui",
+             "probe_send", "probe_voice", "send_group_voice")
+# 发送类指令（都要过发送双闸）：发语音条也算真实发送
+SEND_OPS = ("send_group", "send_group_image", "send_group_voice")
+# 需要先进入指定群、受群白名单约束的指令
+GROUP_OPS = ("read_group", "send_group", "send_group_image",
+             "probe_voice", "send_group_voice")
 # 只许碰这些群（按手机端看到的群标题匹配，子串命中即可，别写太宽）
 DEFAULT_GROUPS = "辰星港"
 
@@ -100,11 +104,11 @@ class JobStore:
         self.send_enabled_fn = send_enabled_fn or (lambda: False)
 
     # ---- 内部 runner 侧 ----
-    def dispatch(self, op, group="", text="", image_url="", n=30, ttl=120):
+    def dispatch(self, op, group="", text="", image_url="", audio_url="", n=30, ttl=120):
         """投一个任务，做白名单校验，返回 job_id 或 (None, 原因)。"""
         if op not in ALLOW_OPS:
             return None, "op_not_allowed"
-        if op in ("read_group", "send_group", "send_group_image"):
+        if op in GROUP_OPS:
             if not self._group_ok(group):
                 return None, "group_not_allowed"
         if op == "send_group":
@@ -116,10 +120,16 @@ class JobStore:
         if op == "send_group_image":
             if not valid_image_url(image_url):
                 return None, "bad_image_url"
+        if op == "send_group_voice":
+            audio_url = str(audio_url or "").strip()
+            if not (audio_url.lower().startswith(ALLOWED_URL_SCHEMES)
+                    and len(audio_url) <= MAX_IMG_URL_LEN):
+                return None, "bad_audio_url"
         job_id = uuid.uuid4().hex[:16]
         job = {
             "job_id": job_id, "op": op, "group": group, "text": text,
             "image_url": str(image_url or "").strip(),
+            "audio_url": audio_url,
             "n": int(n), "ctime": time.time(), "expire": time.time() + int(ttl),
             "status": "queued", "result": None,
         }
@@ -299,6 +309,7 @@ def make_handlers(store, token, device_allow, public=True):
                         group=str(payload.get("group", "")),
                         text=str(payload.get("text", "")),
                         image_url=str(payload.get("image_url", "")),
+                        audio_url=str(payload.get("audio_url", "")),
                         n=int(payload.get("n", 30) or 30),
                         ttl=int(payload.get("ttl", 120) or 120))
                     if not jid:

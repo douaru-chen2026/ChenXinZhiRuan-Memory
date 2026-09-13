@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v713"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v714"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -427,6 +427,105 @@ function guessExt(url) {
     return m ? "." + m[1].replace("jpeg", "jpg") : ".jpg";
 }
 
+// ===== v714 发语音：手机外放 TTS、同时长按"按住说话"内录，抬手发送 =====
+// 输入框最左侧的"语音/键盘"切换小图标；找不到就点校准坐标（常态输入框左缘 x≈105,y≈2186）
+function findVoiceToggle() {
+    return waitAny([
+        function () { try { return descMatches(/语音|话筒|麦克|声音|键盘/); } catch (e) { return null; } },
+        function () { try { return textMatches(/语音|话筒/); } catch (e) { return null; } }
+    ], 1500);
+}
+function tapVoiceToggle() {
+    var w = findVoiceToggle();
+    if (w) { clickWidget(w); return "node"; }
+    click(sx(105), sy(2186)); // CALIB：输入框左侧语音切换图标兜底坐标
+    return "coord";
+}
+// 切到"按住说话"态，返回大按钮中心；找不到返回 null
+function findHoldToTalk() {
+    var b = waitAny([
+        function () { try { return textMatches(/按住\s*说话/); } catch (e) { return null; } },
+        function () { try { return text("按住 说话"); } catch (e) { return null; } },
+        function () { try { return descMatches(/按住\s*说话/); } catch (e) { return null; } }
+    ], 2200);
+    if (b) { var bd = b.bounds(); return { x: bd.centerX(), y: bd.centerY(), raw: b }; }
+    return null;
+}
+// 探针：进群→收键盘→dump常态→点语音切换→dump按住说话态→切回文字态。绝不长按、不录音、不发送
+function doProbeVoice() {
+    if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
+    sleep(600);
+    if (keyboardUp()) { try { back(); sleep(700); } catch (e) {} }
+    var hNormal = dumpHierarchy();
+    var how = tapVoiceToggle();
+    sleep(1400);
+    var hold = findHoldToTalk();
+    var hVoice = dumpHierarchy();
+    var holdBounds = "";
+    if (hold) { var b = hold.raw.bounds(); holdBounds = "[" + b.left + "," + b.top + "][" + b.right + "," + b.bottom + "]"; }
+    tapVoiceToggle(); // 再点一次切回文字态，别让群停在语音面板
+    sleep(600);
+    return { ok: true, toggle_by: how, hold_found: !!hold, hold_bounds: holdBounds,
+             dbgN: hNormal.dbg, dbgV: hVoice.dbg,
+             uiNormal: String(hNormal.xml || "").slice(0, 70000),
+             uiVoice: String(hVoice.xml || "").slice(0, 70000) };
+}
+function guessAudioExt(url) {
+    var m = String(url).toLowerCase().match(/\.(mp3|m4a|aac|wav)(\?|$)/);
+    return m ? "." + m[1] : ".mp3";
+}
+// 真发语音条：下载TTS→切语音态→长按hold同时外放内录→抬手发送；cancel=true 上滑取消（空练不发）
+function doSendVoice(audioUrl, cancel) {
+    audioUrl = String(audioUrl || "");
+    if (!/^https?:\/\//i.test(audioUrl)) return { ok: false, err: "bad_audio_url" };
+    var dir = "/sdcard/Music/acheng/";
+    files.createWithDirs(dir + ".keep");
+    var local = dir + "v_" + Date.now() + guessAudioExt(audioUrl).split("?")[0];
+    var resp;
+    try { resp = http.get(audioUrl, { timeout: 25000 }); }
+    catch (e) { return { ok: false, err: "dl_ex:" + e }; }
+    if (!resp || resp.statusCode !== 200) return { ok: false, err: "download_failed:" + (resp ? resp.statusCode : "null") };
+    files.writeBytes(local, resp.body.bytes());
+    sleep(500);
+
+    if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
+    sleep(600);
+    if (keyboardUp()) { try { back(); sleep(700); } catch (e) {} }
+    var hold = findHoldToTalk();
+    if (!hold) { tapVoiceToggle(); sleep(1300); hold = findHoldToTalk(); }
+    if (!hold) { var h0 = dumpHierarchy(); return { ok: false, err: "hold_btn_not_found", ui: String(h0.xml || "").slice(0, 120000) }; }
+    var hx = sx(hold.x), hy = sy(hold.y);
+
+    // 音量0先跑一遍拿时长（不出声），再正式外放内录
+    var durMs = 0;
+    try {
+        media.playMusic(local, 0.0, false);
+        sleep(350);
+        durMs = Math.round(media.getMusicDuration() || 0);
+        media.stopMusic();
+        media.seekMusic(0);
+    } catch (e) { try { media.stopMusic(); } catch (e2) {} }
+    if (!durMs || durMs < 800 || durMs > 70000) return { ok: false, err: "bad_duration:" + durMs };
+    var padHead = 350, padTail = 450, holdMs = durMs + padHead + padTail;
+
+    var cancelled = !!cancel;
+    var t = threads.start(function () {
+        try {
+            if (cancelled) { gesture(holdMs, [hx, hy], [hx, hy - sy(320)]); }
+            else { gesture(holdMs, [hx, hy], [hx, hy]); }
+        } catch (e) {}
+    });
+    sleep(padHead);
+    var playErr = "";
+    try { media.playMusic(local, 0.9, false); } catch (e) { playErr = String(e); }
+    sleep(holdMs + 400); // 等抬手（发送/取消）
+    try { media.stopMusic(); } catch (e) {}
+    try { t.join(2000); } catch (e) {}
+    sleep(1300);
+    return { ok: true, voice: audioUrl, local: local, durMs: durMs,
+             holdMs: holdMs, holdXY: [hx, hy], cancel: cancelled, playErr: playErr };
+}
+
 function handle(job) {
     switch (job.op) {
         case "ping":            return doPing();
@@ -435,6 +534,8 @@ function handle(job) {
         case "send_group":      return doSendText(job.text);
         case "probe_send":      return doProbeSend(job.text);
         case "send_group_image":return doSendImage(job.image_url);
+        case "probe_voice":     return doProbeVoice();
+        case "send_group_voice":return doSendVoice(job.audio_url, job.cancel);
         default:                return { ok: false, err: "op_not_supported_on_phone: " + job.op };
     }
 }
