@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v714"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v715"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -109,16 +109,27 @@ function bringXhs() {
         sleep(2500);
     }
 }
+// 聊天页标志：文字输入框(发消息…) 或 语音态的"按住说话"任一在，就算在聊天（搜索框EditText不算）
+function chatInputSign(ms) {
+    return waitAny([
+        function () { return text("发消息…"); },
+        function () { return text("发消息..."); },
+        function () { return text("说点什么..."); },
+        function () { try { return textMatches(/按住\s*说话/); } catch (e) { return null; } }
+    ], ms || 1500);
+}
 // 进入目标群聊：在「消息」页点群名。已在聊天页就直接返回 true。
 function enterGroup() {
     bringXhs();
-    // 已在群聊：能找到输入框即视为在聊天界面 /*CALIB*/
-    var input = waitAny([
-        function () { return className("android.widget.EditText"); },
-        function () { return text("说点什么..."); },
-        function () { return desc("输入框"); }
-    ], 4000);
-    if (input) return true;
+    if (chatInputSign(2500)) return true;
+    // 可能卡在群成员/群资料等子页，先退回最多两次
+    var backSign;
+    for (var bi = 0; bi < 2; bi++) {
+        try { back(); } catch (e) {}
+        sleep(900);
+        backSign = chatInputSign(1200);
+        if (backSign) return true;
+    }
 
     // 先到「消息」tab /*CALIB*/
     var msgTab = waitAny([
@@ -135,7 +146,21 @@ function enterGroup() {
     if (!g) return false;
     clickWidget(g);
     sleep(1500);
-    return true;
+    return !!chatInputSign(2500);
+}
+// 幂等切到"按住说话"语音态：不管当前是文字态还是语音态，最终都落到语音按钮，避免点反
+function ensureVoiceMode() {
+    if (!enterGroup()) return null;
+    sleep(500);
+    if (keyboardUp()) { try { back(); sleep(700); } catch (e) {} }
+    var hold = null;
+    for (var i = 0; i < 3; i++) {
+        hold = findHoldToTalk();
+        if (hold) return hold;
+        tapVoiceToggle();
+        sleep(1400);
+    }
+    return findHoldToTalk();
 }
 
 // ============ 各指令 ============
@@ -488,12 +513,8 @@ function doSendVoice(audioUrl, cancel) {
     files.writeBytes(local, resp.body.bytes());
     sleep(500);
 
-    if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
-    sleep(600);
-    if (keyboardUp()) { try { back(); sleep(700); } catch (e) {} }
-    var hold = findHoldToTalk();
-    if (!hold) { tapVoiceToggle(); sleep(1300); hold = findHoldToTalk(); }
-    if (!hold) { var h0 = dumpHierarchy(); return { ok: false, err: "hold_btn_not_found", ui: String(h0.xml || "").slice(0, 120000) }; }
+    var hold = ensureVoiceMode();
+    if (!hold) { var h0 = dumpHierarchy(); return { ok: false, err: "hold_btn_not_found", activity: safeActivity(), ui: String(h0.xml || "").slice(0, 120000) }; }
     var hx = sx(hold.x), hy = sy(hold.y);
 
     // 音量0先跑一遍拿时长（不出声），再正式外放内录
@@ -522,6 +543,7 @@ function doSendVoice(audioUrl, cancel) {
     try { media.stopMusic(); } catch (e) {}
     try { t.join(2000); } catch (e) {}
     sleep(1300);
+    try { tapVoiceToggle(); sleep(500); } catch (e) {} // 发完切回文字常态，免得下一轮状态判断点反
     return { ok: true, voice: audioUrl, local: local, durMs: durMs,
              holdMs: holdMs, holdXY: [hx, hy], cancel: cancelled, playErr: playErr };
 }
