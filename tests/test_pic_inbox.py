@@ -115,6 +115,22 @@ class TestHTTP(unittest.TestCase):
         self.assertEqual(ct, "image/png")
         self.assertTrue(body.startswith(b"\x89PNG"))
 
+    def test_pic_chinese_percent_encoded(self):
+        # 浏览器会把中文文件名 percent-encode，服务端必须解码后取得到
+        from urllib.parse import quote
+        url = "/pic/" + quote("图一.jpg") + "?t=" + TOKEN
+        st, ct, body, _ = self._get(url)
+        self.assertEqual(st, 200)
+        self.assertEqual(ct, "image/jpeg")
+        self.assertTrue(body.startswith(b"\xff\xd8"))
+
+    def test_index_links_are_percent_encoded(self):
+        # 列表页给中文图生成的链接必须是编码后的 ASCII，不含裸中文
+        from urllib.parse import quote
+        st, _, body, _ = self._get(f"/?t={TOKEN}")
+        self.assertEqual(st, 200)
+        self.assertIn(("/pic/" + quote("图一.jpg")).encode(), body)
+
     def test_pic_traversal_404(self):
         self.assertEqual(self._get("/pic/..%2f..%2fetc?t=" + TOKEN)[0], 404)
         self.assertEqual(self._get("/pic/notes.txt?t=" + TOKEN)[0], 404)

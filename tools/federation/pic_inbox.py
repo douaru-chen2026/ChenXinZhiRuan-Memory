@@ -35,7 +35,7 @@ import time
 from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs, quote
+from urllib.parse import urlparse, parse_qs, quote, unquote
 
 # ---- 配置（全部可被环境变量覆盖；真值只从 env / 仓外读，绝不入库） ----------
 DEFAULT_PORT = 8797
@@ -127,10 +127,11 @@ def render_index(items):
     """取件箱手机页。文件名全部 html.escape。延续家门的粉紫星空。"""
     cards = []
     for name, mtime, size in items:
-        e = html.escape(name, quote=True)
+        e = html.escape(name, quote=True)    # 显示文本做 HTML 转义
+        u = quote(name, safe="")             # 链接路径做规范 percent 编码(兼容中文)
         cards.append(f"""
- <a class=card href="/pic/{e}">
-   <img loading=lazy src="/pic/{e}" alt="">
+ <a class=card href="/pic/{u}">
+   <img loading=lazy src="/pic/{u}" alt="">
    <div class=meta><span class=nm>{e}</span>
    <span class=info>{fmt_time(mtime)} · {human_size(size)} · 点开长按存图</span></div>
  </a>""")
@@ -263,7 +264,9 @@ def make_handler(inbox_dir, token):
 
         def do_GET(self):
             qs = self._qs()
-            path = urlparse(self.path).path
+            # 先 percent-decode 再路由：浏览器会把中文文件名编码；而 %2e%2f 这类
+            # 解码后照样会被后面的 safe_name 白名单拦下，不构成路径穿越。
+            path = unquote(urlparse(self.path).path)
             if path == "/health":
                 return self._send(
                     200, '{"ok": true, "svc": "pic_inbox"}',
