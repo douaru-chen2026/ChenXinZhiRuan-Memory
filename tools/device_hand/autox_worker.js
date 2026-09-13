@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v708"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v709"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -268,6 +268,18 @@ function doProbeSend(text) {
     return { ok: true, probe: text, dbg: h.dbg, ui: (h.xml || "").slice(0, 200000) };
 }
 
+// 坐标按荣耀1080×2388校准，自动按当前设备分辨率缩放
+function sx(x) { try { return Math.round(x * device.width / 1080); } catch (e) { return x; } }
+function sy(y) { try { return Math.round(y * device.height / 2388); } catch (e) { return y; } }
+// 键盘是否弹起（弹起时输入框整体上移，top 远小于常态约 2126）
+function keyboardUp() {
+    try {
+        var et = className("android.widget.EditText").findOnce();
+        if (et) return et.bounds().top < 1900;
+    } catch (e) {}
+    return false;
+}
+
 function doSendImage(imageUrl) {
     imageUrl = String(imageUrl || "");
     if (!/^https?:\/\//i.test(imageUrl)) return { ok: false, err: "bad_image_url" };
@@ -275,61 +287,43 @@ function doSendImage(imageUrl) {
     // 1) 下载到相册目录并通知系统媒体库
     var dir = "/sdcard/Pictures/acheng/";
     files.createWithDirs(dir + ".keep");
-    var local = dir + "h_" + Date.now() + guessExt(imageUrl);
-    var resp = http.get(imageUrl, { timeout: 20000 });
-    if (!resp || resp.statusCode !== 200) return { ok: false, err: "download_failed" };
+    var local = dir + "h_" + Date.now() + guessExt(imageUrl).split("?")[0];
+    var resp;
+    try { resp = http.get(imageUrl, { timeout: 20000 }); }
+    catch (e) { return { ok: false, err: "dl_ex:" + e }; }
+    if (!resp || resp.statusCode !== 200) return { ok: false, err: "download_failed:" + (resp ? resp.statusCode : "null") };
     files.writeBytes(local, resp.body.bytes());
     try { media.scanFile(local); } catch (e) {}
-    sleep(800);
+    sleep(2800); // 等系统相册收录新图
 
-    // 2) 进群 → 点 + → 相册 → 选刚下载的图 → 发送
+    // 2) 进群，键盘若弹起先收起，保证回到群聊常态布局（+号在底部）
     if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
-    var plus = waitAny([
-        function () { return desc("更多功能"); },
-        function () { return desc("更多"); },
-        function () { return text("+"); },
-        function () { return id("com.xingin.xhs:id/im_chat_input_extra_view"); }
-    ], CFG.stepMs); /*CALIB*/
-    if (!plus) return { ok: false, err: "plus_btn_not_found" };
-    clickWidget(plus);
-    sleep(1000);
+    sleep(600);
+    if (keyboardUp()) { try { back(); sleep(500); } catch (e) {} }
 
+    // 3) 点 + 号（输入框最右 ImageView，常态中心 966,2186）展开功能面板
+    click(sx(966), sy(2186));
+    sleep(1300);
     var album = waitAny([
         function () { return text("相册"); },
-        function () { return text("图片"); },
         function () { return desc("相册"); }
-    ], CFG.stepMs); /*CALIB*/
-    if (!album) return { ok: false, err: "album_entry_not_found" };
+    ], CFG.stepMs);
+    if (!album) return { ok: false, err: "album_not_found" };
     clickWidget(album);
-    sleep(1800); // 等相册缩略图加载
+    sleep(2400); // 等相册选择页 MaterialSelectActivity 缩略图加载
 
-    // 选图：优先按文件名找不到就选网格第一张（刚下载的通常排最前）/*CALIB*/
-    var picked = false;
-    var thumb = waitAny([
-        function () { return text(local.split("/").pop()); }
-    ], 1500);
-    if (thumb) { clickWidget(thumb); picked = true; }
-    if (!picked) {
-        var grid = waitAny([
-            function () { return className("android.widget.GridView"); },
-            function () { return className("androidx.recyclerview.widget.RecyclerView"); }
-        ], 2500);
-        if (grid) {
-            var first = grid.child(0);
-            if (first) { clickWidget(first); picked = true; }
-        }
-    }
-    if (!picked) return { ok: false, err: "pick_image_failed" };
-    sleep(800);
+    // 4) 选最新一张（默认“全部”按时间倒序，刚下载的在第一张，中心 279,441）
+    click(sx(279), sy(441));
+    sleep(1000);
 
+    // 5) 点右下“发送”（847,2138][1035,2228）
     var send = waitAny([
         function () { return text("发送"); },
-        function () { return text("完成"); },
         function () { return desc("发送"); }
-    ], CFG.stepMs); /*CALIB*/
-    if (!send) return { ok: false, err: "image_send_btn_not_found" };
+    ], CFG.stepMs);
+    if (!send) return { ok: false, err: "img_send_btn_not_found", local: local };
     clickWidget(send);
-    sleep(1200);
+    sleep(1800);
     return { ok: true, sent_image: imageUrl, local: local };
 }
 function guessExt(url) {
