@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v712"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v713"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -205,6 +205,7 @@ function isTimeText(t) {
 }
 function isRoleTag(t) { return /^(群主|管理员|群管理员|助教|粉丝|新成员|成员)$/.test(t); }
 function isSysTip(t) { return /撤回了一条消息|加入了群聊|成为新成员|移出了群|修改了群|你已添加/.test(t); }
+function isTitleNoise(t) { return /^\(\d+\)$/.test(t) || /^\d+\s*人在线$/.test(t) || /^输入中/.test(t); }
 function collectDesc(node, out) {
     try {
         var k, ch;
@@ -213,6 +214,13 @@ function collectDesc(node, out) {
         }
     } catch (e) {}
     return out;
+}
+// 找消息列表：完整类名精确匹配优先，正则兜底（部分 AutoX 版本 classNameMatches 挑参数）
+function findMsgList() {
+    var l = null;
+    try { l = className("androidx.recyclerview.widget.RecyclerView").findOnce(); } catch (e) { l = null; }
+    if (!l) { try { l = classNameMatches(/RecyclerView/).findOnce(); } catch (e2) { l = null; } }
+    return l;
 }
 // 解析单行消息：返回 {self,nick,text,ctype,ts}；纯时间/图片/系统行返回 null
 function parseMsgRow(row) {
@@ -250,9 +258,11 @@ function parseMsgRow(row) {
 function doRead() {
     if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
     var items = [];
+    var dbg = {};
     try {
-        var list = null;
-        try { list = classNameMatches(/RecyclerView/).findOnce(); } catch (e) { list = null; }
+        var list = findMsgList();
+        dbg.found = !!list;
+        dbg.children = list ? list.childCount() : -1;
         if (list) {
             var lastNick = "", ri, row;
             for (ri = 0; ri < list.childCount(); ri++) {
@@ -264,11 +274,13 @@ function doRead() {
             }
         }
         // 兜底：结构化一行没拿到就退回平铺，绝不当“瞎眼”
+        dbg.structured = items.length;
         if (!items.length) {
+            dbg.fallback = true;
             var flat = className("android.widget.TextView").find(), seen = {}, fi, ft;
             for (fi = 0; fi < flat.length; fi++) {
                 ft = (flat[fi].text() || "").trim();
-                if (ft && !seen[ft] && !isTimeText(ft) && !isSysTip(ft)) {
+                if (ft && !seen[ft] && !isTimeText(ft) && !isSysTip(ft) && !isTitleNoise(ft)) {
                     seen[ft] = 1;
                     items.push({ self: false, nick: "群友", text: ft, ctype: "text" });
                 }
@@ -277,7 +289,7 @@ function doRead() {
     } catch (e) {
         return { ok: false, err: "collect_failed: " + e };
     }
-    return { ok: true, items: items };
+    return { ok: true, items: items, dbg: dbg };
 }
 
 function findInput(ms) {
