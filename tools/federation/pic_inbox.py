@@ -272,10 +272,11 @@ def make_handler(inbox_dir, token):
             ctype = CTYPE.get(ext, "application/octet-stream")
             headers = [("Last-Modified", formatdate(target.stat().st_mtime,
                                                     usegmt=True))]
-            if inline and ext in IMAGE_EXT:
+            if (inline and ext in IMAGE_EXT) or ext == ".txt":
+                # 图片内联预览；txt 直接在浏览器显示纯文本，方便手机长按选中复制口令
                 headers.append(("Content-Disposition", "inline"))
             else:
-                # 图片走 /raw 或安装包（apk 无法内联）一律附件下载
+                # /raw 图片、安装包 apk、脚本 js 一律附件下载
                 headers.append(("Content-Disposition",
                                 f"attachment; filename*=UTF-8''{quote(name)}"))
             # query 里带口令访问图片时顺手补 cookie，后续靠 cookie
