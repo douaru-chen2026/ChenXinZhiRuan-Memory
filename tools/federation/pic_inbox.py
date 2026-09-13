@@ -40,13 +40,16 @@ from urllib.parse import urlparse, parse_qs, quote, unquote
 # ---- 配置（全部可被环境变量覆盖；真值只从 env / 仓外读，绝不入库） ----------
 DEFAULT_PORT = 8797
 DEFAULT_DIR = "/var/lib/pic_inbox"
-# 图片 + 安卓安装包（安装包只用于把 AutoX 等可靠 apk 递到阿阮手机，走附件下载）
+# 图片内联预览；其余白名单文件（安卓安装包、工人脚本、说明文本）走附件下载
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-ALLOWED_EXT = IMAGE_EXT | {".apk"}
+ATTACH_EXT = {".apk", ".js", ".txt"}
+ALLOWED_EXT = IMAGE_EXT | ATTACH_EXT
 CTYPE = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
     ".webp": "image/webp", ".gif": "image/gif",
     ".apk": "application/vnd.android.package-archive",
+    ".js": "text/javascript; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
 }
 LIST_LIMIT = 100                 # 一页最多列多少张，最新在前
 COOKIE_NAME = "pict"
@@ -133,13 +136,15 @@ def render_index(items):
         e = html.escape(name, quote=True)    # 显示文本做 HTML 转义
         u = quote(name, safe="")             # 链接路径做规范 percent 编码(兼容中文)
         ext = os.path.splitext(name)[1].lower()
-        if ext == ".apk":
-            # 安装包不是图，走 /raw 附件下载卡，不套 <img> 预览
+        if ext in ATTACH_EXT:
+            # 非图片（安装包/脚本/文本）走 /raw 附件下载卡，不套 <img> 预览
+            icon = "📲" if ext == ".apk" else "📄"
+            tip = "点这里下载，下完点开安装" if ext == ".apk" else "点这里下载到手机"
             cards.append(f"""
  <a class="card apk" href="/raw/{u}">
-   <div class=apki>📲</div>
+   <div class=apki>{icon}</div>
    <div class=meta><span class=nm>{e}</span>
-   <span class=info>{fmt_time(mtime)} · {human_size(size)} · 点这里下载，下完点开安装</span></div>
+   <span class=info>{fmt_time(mtime)} · {human_size(size)} · {tip}</span></div>
  </a>""")
         else:
             cards.append(f"""

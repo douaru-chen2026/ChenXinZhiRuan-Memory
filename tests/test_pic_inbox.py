@@ -24,7 +24,9 @@ class TestSafeName(unittest.TestCase):
         # 大写扩展名也放行（判断时转小写），但只认白名单
         self.assertIsNotNone(P.safe_name("A.PNG"))
         self.assertIsNotNone(P.safe_name("AutoX.apk"))   # 安装包白名单
-        self.assertIsNone(P.safe_name("a.txt"))
+        self.assertIsNotNone(P.safe_name("worker.js"))   # 脚本白名单
+        self.assertIsNotNone(P.safe_name("说明.txt"))    # 文本白名单
+        self.assertIsNone(P.safe_name("a.bin"))
         self.assertIsNone(P.safe_name("a.exe"))
         self.assertIsNone(P.safe_name("noext"))
 
@@ -40,18 +42,18 @@ class TestSafeName(unittest.TestCase):
 class TestListPics(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        # 两张合法图（old 先写、new 后写，确保 new 的 mtime 更新）+ 非图片/隐藏/子目录
+        # 两张合法图（old 先写、new 后写，确保 new 的 mtime 更新）+ 非白名单/隐藏/子目录
         Path(self.tmp, "old.png").write_bytes(b"y" * 20)
         time.sleep(0.02)
         Path(self.tmp, "new.jpg").write_bytes(b"x" * 10)
-        Path(self.tmp, "notes.txt").write_text("ignore")
+        Path(self.tmp, "notes.bin").write_text("ignore")
         Path(self.tmp, ".secret.jpg").write_bytes(b"z")
         os.mkdir(os.path.join(self.tmp, "sub"))
 
     def test_only_images_sorted_desc(self):
         items = P.list_pics(self.tmp)
         names = [n for n, _, _ in items]
-        self.assertEqual(names, ["new.jpg", "old.png"])  # 新的在前，txt/隐藏/目录被滤掉
+        self.assertEqual(names, ["new.jpg", "old.png"])  # 新的在前，bin/隐藏/目录被滤掉
         self.assertEqual(items[1][2], 20)                # 大小读对
 
     def test_resolve_inside(self):
@@ -161,6 +163,17 @@ class TestHTTP(unittest.TestCase):
         r = c.getresponse(); r.read()
         self.assertIn("attachment", r.getheader("Content-Disposition") or "")
         c.close()
+
+    def test_js_txt_are_attachments(self):
+        Path(self.tmp, "worker.js").write_text("console.log(1)", encoding="utf-8")
+        # 列表里脚本同样走 /raw，不套 /pic
+        _, _, idx, _ = self._get(f"/?t={TOKEN}")
+        self.assertIn(b"/raw/worker.js", idx)
+        self.assertNotIn(b"/pic/worker.js", idx)
+        st, ct, body, _ = self._get(f"/raw/worker.js?t={TOKEN}")
+        self.assertEqual(st, 200)
+        self.assertIn("javascript", ct)
+        self.assertEqual(body, b"console.log(1)")
 
 
 if __name__ == "__main__":
