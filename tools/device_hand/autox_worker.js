@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v710"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v711"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -332,8 +332,9 @@ function doSendImage(imageUrl) {
     click(sx(279), sy(441));
     sleep(1000);
 
-    // 5) 点右下“发送”（847,2138][1035,2228）
+    // 5) 点右下“发送”（选图后文案会变成“发送 1”，故用 startsWith 通吃）
     var send = waitAny([
+        function () { return textStartsWith("发送"); },
         function () { return text("发送"); },
         function () { return desc("发送"); }
     ], CFG.stepMs);
