@@ -141,10 +141,29 @@ function enterGroup() {
 function doPing() {
     return { ok: true, pong: 1, ts: Date.now(), pkg: currentPackage() };
 }
+// 免root无障碍抓当前全部窗口界面XML，多重兜底兼容AutoX各版本（不存在全局dumpXml）
+function dumpHierarchy() {
+    var parts = [];
+    try {
+        if (typeof auto.windowRoots === "function") {
+            var rs = auto.windowRoots();
+            if (rs && rs.length) { for (var i = 0; i < rs.length; i++) { if (rs[i]) parts.push(rs[i].xml()); } }
+        }
+    } catch (e1) {}
+    if (!parts.length) {
+        try { var w = auto.rootInActiveWindow; if (w) parts.push(w.xml()); } catch (e2) {}
+    }
+    if (!parts.length) {
+        try { if (auto.root) parts.push(auto.root.xml()); } catch (e3) {}
+    }
+    return parts.join("\n<!---->\n");
+}
+function safeActivity() { try { return currentActivity(); } catch (e) { return ""; } }
 function doDumpUi() {
     var xml = "";
-    try { xml = dumpXml(); } catch (e) { xml = "dump fail: " + e; }
-    return { ok: true, pkg: currentPackage(), ui: String(xml).slice(0, 200000) };
+    try { xml = dumpHierarchy(); } catch (e) { xml = "dump fail: " + e; }
+    if (!xml) xml = "EMPTY: service=" + (auto.service ? "on" : "off") + " activity=" + safeActivity();
+    return { ok: true, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
 }
 
 function doRead() {
