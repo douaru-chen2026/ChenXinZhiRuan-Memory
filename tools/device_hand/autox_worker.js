@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v709"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v710"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -304,13 +304,29 @@ function doSendImage(imageUrl) {
     // 3) 点 + 号（输入框最右 ImageView，常态中心 966,2186）展开功能面板
     click(sx(966), sy(2186));
     sleep(1300);
-    var album = waitAny([
+    var albumLab = waitAny([
         function () { return text("相册"); },
         function () { return desc("相册"); }
     ], CFG.stepMs);
-    if (!album) return { ok: false, err: "album_not_found" };
-    clickWidget(album);
-    sleep(2400); // 等相册选择页 MaterialSelectActivity 缩略图加载
+    if (!albumLab) return { ok: false, err: "album_not_found" };
+    // “相册”文字本身不可点，向上找可点祖先；找不到就点校准坐标(图标框中心 165,1700)
+    function tapAlbumEntry() {
+        var node = albumLab, hops = 0, hit = false;
+        while (node && hops < 5) {
+            try { if (node.clickable()) { clickWidget(node); hit = true; break; } } catch (e) {}
+            try { node = node.parent(); } catch (e) { break; }
+            hops++;
+        }
+        if (!hit) click(sx(165), sy(1700));
+    }
+    function inSelectPage() {
+        try { return !!(text("原图").findOnce() || text("预览").findOnce()); } catch (e) { return false; }
+    }
+    tapAlbumEntry();
+    sleep(2000);
+    if (!inSelectPage()) { tapAlbumEntry(); sleep(2200); } // 没进去就再点一次
+    if (!inSelectPage()) { click(sx(165), sy(1700)); sleep(2200); }
+    if (!inSelectPage()) return { ok: false, err: "album_not_open" };
 
     // 4) 选最新一张（默认“全部”按时间倒序，刚下载的在第一张，中心 279,441）
     click(sx(279), sy(441));
