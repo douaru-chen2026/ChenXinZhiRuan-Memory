@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v705"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v706"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -142,29 +142,65 @@ function enterGroup() {
 function doPing() {
     return { ok: true, pong: 1, ver: WORKER_VERSION, ts: Date.now(), pkg: currentPackage() };
 }
-// 免root无障碍抓当前全部窗口界面XML，多重兜底兼容AutoX各版本（不存在全局dumpXml）
+// 免root无障碍抓界面XML，v706：每一路读取方式都记录诊断，定位“能读activity却读不到节点”
 function dumpHierarchy() {
-    var parts = [];
+    var parts = [], dbg = [];
+    function collect(node, tag) {
+        if (!node) { dbg.push(tag + "=null"); return; }
+        try { parts.push(node.xml()); dbg.push(tag + "=有"); }
+        catch (e) { dbg.push(tag + ".xmlErr=" + e); }
+    }
+    // 路1 windowRoots 当函数
     try {
         if (typeof auto.windowRoots === "function") {
             var rs = auto.windowRoots();
-            if (rs && rs.length) { for (var i = 0; i < rs.length; i++) { if (rs[i]) parts.push(rs[i].xml()); } }
-        }
-    } catch (e1) {}
+            dbg.push("wrFn.len=" + (rs ? rs.length : "null"));
+            if (rs) for (var i = 0; i < rs.length; i++) collect(rs[i], "wrFn" + i);
+        } else { dbg.push("windowRoots是" + typeof auto.windowRoots); }
+    } catch (e1) { dbg.push("wrFnErr=" + e1); }
+    // 路1b windowRoots 当属性
+    if (!parts.length) { try { var wp = auto.windowRoots; if (wp && wp.length) { dbg.push("wrProp.len=" + wp.length); for (var j = 0; j < wp.length; j++) collect(wp[j], "wrP" + j); } } catch (e1b) { dbg.push("wrPErr=" + e1b); } }
+    // 路2 rootInActiveWindow
+    if (!parts.length) { try { collect(auto.rootInActiveWindow, "active"); } catch (e2) { dbg.push("activeErr=" + e2); } }
+    // 路3 auto.root
+    if (!parts.length) { try { collect(auto.root, "root"); } catch (e3) { dbg.push("rootErr=" + e3); } }
+    // 路4 auto.getWindows() 逐个 getRoot
     if (!parts.length) {
-        try { var w = auto.rootInActiveWindow; if (w) parts.push(w.xml()); } catch (e2) {}
+        try {
+            if (typeof auto.getWindows === "function") {
+                var ws = auto.getWindows();
+                dbg.push("getWindows.len=" + (ws ? ws.length : "null"));
+                if (ws) for (var k = 0; k < ws.length; k++) collect(ws[k].getRoot ? ws[k].getRoot() : null, "win" + k);
+            } else dbg.push("无getWindows");
+        } catch (e4) { dbg.push("gwErr=" + e4); }
     }
+    // 路5 直接拿 service 取窗口
     if (!parts.length) {
-        try { if (auto.root) parts.push(auto.root.xml()); } catch (e3) {}
+        try {
+            var svc = auto.service;
+            if (!svc) { dbg.push("service=null"); }
+            else {
+                var sw = svc.getWindows();
+                dbg.push("svc.windows.len=" + (sw ? sw.length : "null"));
+                if (sw) for (var m = 0; m < sw.length; m++) collect(sw[m].getRoot(), "svcWin" + m);
+            }
+        } catch (e5) { dbg.push("svcErr=" + e5); }
     }
-    return parts.join("\n<!---->\n");
+    // 路6 选择器直接找输入框（不依赖整树xml，能找到说明节点其实可读）
+    try {
+        var et = className("android.widget.EditText").findOnce();
+        dbg.push("找EditText=" + (et ? ("找到:" + et.text() + "|" + et.id()) : "没找到"));
+        if (et && !parts.length) collect(et.parent(), "etParent");
+    } catch (e6) { dbg.push("findErr=" + e6); }
+    return { xml: parts.join("\n<!---->\n"), dbg: dbg.join(" || ") };
 }
 function safeActivity() { try { return currentActivity(); } catch (e) { return ""; } }
 function doDumpUi() {
-    var xml = "";
-    try { xml = dumpHierarchy(); } catch (e) { xml = "dump fail: " + e; }
-    if (!xml) xml = "EMPTY: service=" + (auto.service ? "on" : "off") + " activity=" + safeActivity();
-    return { ok: true, ver: WORKER_VERSION, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
+    var h, xml = "";
+    try { h = dumpHierarchy(); xml = h.xml || ""; } catch (e) { return { ok: false, ver: WORKER_VERSION, err: "dump fail: " + e }; }
+    var dbg = (h && h.dbg) || "";
+    if (!xml) xml = "EMPTY || " + dbg + " || service=" + (auto.service ? "on" : "off") + " activity=" + safeActivity();
+    return { ok: true, ver: WORKER_VERSION, dbg: dbg, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
 }
 
 function doRead() {
