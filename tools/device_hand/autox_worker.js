@@ -34,6 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
+var WORKER_VERSION = "v705"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -139,7 +140,7 @@ function enterGroup() {
 
 // ============ 各指令 ============
 function doPing() {
-    return { ok: true, pong: 1, ts: Date.now(), pkg: currentPackage() };
+    return { ok: true, pong: 1, ver: WORKER_VERSION, ts: Date.now(), pkg: currentPackage() };
 }
 // 免root无障碍抓当前全部窗口界面XML，多重兜底兼容AutoX各版本（不存在全局dumpXml）
 function dumpHierarchy() {
@@ -163,7 +164,7 @@ function doDumpUi() {
     var xml = "";
     try { xml = dumpHierarchy(); } catch (e) { xml = "dump fail: " + e; }
     if (!xml) xml = "EMPTY: service=" + (auto.service ? "on" : "off") + " activity=" + safeActivity();
-    return { ok: true, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
+    return { ok: true, ver: WORKER_VERSION, pkg: currentPackage(), activity: safeActivity(), ui: String(xml).slice(0, 200000) };
 }
 
 function doRead() {
