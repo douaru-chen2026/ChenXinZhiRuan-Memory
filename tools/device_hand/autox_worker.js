@@ -279,13 +279,19 @@ function main() {
         sleep(2000);
     }
     toast("豆阿辰的手上岗了");
+    log("[手] 配置完成 守夜机=" + CFG.host + " 端口=" + CFG.gatewayPort + " 设备=" + CFG.device);
+    var n = 0;
     // 常驻：任何异常都不能让循环死掉
     while (true) {
         var job = null;
         try {
             job = fetchJob();
+            if ((n++ % 10) === 0) log("[手] 领任务正常 第" + n + "次 空转等活");
         } catch (e) {
-            sleep(5000); // 网络抖/服务没起，歇 5 秒再领
+            // 把被吞掉的网络错误打到日志+toast，便于定位（被系统禁网/地址畸形/超时）
+            log("[手] 领任务失败：" + e + " || " + (e && e.message));
+            toast("领任务失败 请看日志:" + e);
+            sleep(5000); // 网络抖/服务没起/被禁网，歇 5 秒再领
             continue;
         }
         if (!job) { sleep(CFG.pollGapMs); continue; }
