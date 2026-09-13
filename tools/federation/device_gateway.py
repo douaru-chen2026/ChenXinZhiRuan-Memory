@@ -104,7 +104,8 @@ class JobStore:
         self.send_enabled_fn = send_enabled_fn or (lambda: False)
 
     # ---- 内部 runner 侧 ----
-    def dispatch(self, op, group="", text="", image_url="", audio_url="", n=30, ttl=120):
+    def dispatch(self, op, group="", text="", image_url="", audio_url="",
+                 cancel=False, n=30, ttl=120):
         """投一个任务，做白名单校验，返回 job_id 或 (None, 原因)。"""
         if op not in ALLOW_OPS:
             return None, "op_not_allowed"
@@ -130,6 +131,7 @@ class JobStore:
             "job_id": job_id, "op": op, "group": group, "text": text,
             "image_url": str(image_url or "").strip(),
             "audio_url": audio_url,
+            "cancel": bool(cancel),
             "n": int(n), "ctime": time.time(), "expire": time.time() + int(ttl),
             "status": "queued", "result": None,
         }
@@ -310,6 +312,7 @@ def make_handlers(store, token, device_allow, public=True):
                         text=str(payload.get("text", "")),
                         image_url=str(payload.get("image_url", "")),
                         audio_url=str(payload.get("audio_url", "")),
+                        cancel=bool(payload.get("cancel", False)),
                         n=int(payload.get("n", 30) or 30),
                         ttl=int(payload.get("ttl", 120) or 120))
                     if not jid:
