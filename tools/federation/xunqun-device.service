@@ -1,0 +1,20 @@
+[Unit]
+Description=Xunqun device runner - Dou Achen eyes/hands via real phone (AutoX -> device_gateway)
+After=network-online.target panshi.service device-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=river
+WorkingDirectory=/home/river/ChenXinZhiRuan-Memory
+EnvironmentFile=/etc/council/env
+Environment=PYTHONUNBUFFERED=1
+# 真机通道：专用安卓机的 AutoX 工人经 device_gateway 读/发辰星港。
+# 注意：不带 --send 就是影子模式——只读群、只把拟稿落 pending.jsonl，绝不外发；
+#       真发必须显式加 --send 且 device_gateway 发送总闸置 1（双闸同时满足才会发）。
+ExecStart=/home/river/ChenXinZhiRuan-Memory/.venv/bin/python3 tools/federation/xunqun_runner.py --reader device --state-dir /var/lib/xunqun/device_shadow --interval 60
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
