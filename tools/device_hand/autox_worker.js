@@ -34,7 +34,7 @@ var DEFAULT_CFG = {
     pollGapMs: 1500,     // 领完一轮后的间隔
     stepMs: 8000         // 单个界面步骤的等待上限
 };
-var WORKER_VERSION = "v707"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
+var WORKER_VERSION = "v708"; // 工人脚本版本号，随ping/dump回传，便于确认手机真跑的是哪版
 var STORE = storages.create("achen_hand");
 var CFG = loadConfig();
 
@@ -213,29 +213,59 @@ function doRead() {
     return { ok: true, items: items };
 }
 
+function findInput(ms) {
+    return waitAny([
+        function () { return className("android.widget.EditText"); },
+        function () { return text("发消息…"); },
+        function () { return text("发消息..."); },
+        function () { return text("说点什么..."); }
+    ], ms || CFG.stepMs);
+}
+function fillInput(input, text) {
+    try { if (typeof input.setText === "function") { input.setText(String(text)); return true; } } catch (e) {}
+    try { setText(String(text)); return true; } catch (e2) {}
+    return false;
+}
+function findSend(ms) {
+    return waitAny([
+        function () { return text("发送"); },
+        function () { return desc("发送"); },
+        function () { return text("Send"); }
+    ], ms || CFG.stepMs);
+}
 function doSendText(text) {
     text = String(text || "");
     if (!text.trim()) return { ok: false, err: "empty_text" };
     if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
-    var input = waitAny([
-        function () { return className("android.widget.EditText"); },
-        function () { return text("说点什么..."); }
-    ], CFG.stepMs);
+    var input = findInput();
     if (!input) return { ok: false, err: "input_not_found" };
     clickWidget(input);
-    sleep(500);
-    setText(text);
-    sleep(500);
-    var send = waitAny([
-        function () { return text("发送"); },
-        function () { return desc("发送"); }
-    ], CFG.stepMs);
-    if (!send) { // 兜底：回车发送（部分输入法支持）
-        return { ok: false, err: "send_btn_not_found" };
+    sleep(600);
+    if (!fillInput(input, text)) return { ok: false, err: "settext_failed" };
+    sleep(700);
+    var send = findSend();
+    if (!send) { // 不瞎点，回传输入态界面树便于校准发送键
+        var h0 = dumpHierarchy();
+        return { ok: false, err: "send_btn_not_found", dbg: h0.dbg, ui: (h0.xml || "").slice(0, 200000) };
     }
     clickWidget(send);
-    sleep(800);
+    sleep(900);
     return { ok: true, sent: text };
+}
+// 探针：进群→点输入框→填入文字→dump输入态界面→自动清空收键盘，绝不发送
+function doProbeSend(text) {
+    text = String(text || "探针");
+    if (!enterGroup()) return { ok: false, err: "enter_group_failed" };
+    var input = findInput();
+    if (!input) return { ok: false, err: "input_not_found" };
+    clickWidget(input);
+    sleep(600);
+    fillInput(input, text);
+    sleep(900);
+    var h = dumpHierarchy();
+    try { input.setText(""); } catch (e) {}
+    try { back(); } catch (e) {}
+    return { ok: true, probe: text, dbg: h.dbg, ui: (h.xml || "").slice(0, 200000) };
 }
 
 function doSendImage(imageUrl) {
@@ -313,6 +343,7 @@ function handle(job) {
         case "dump_ui":         return doDumpUi();
         case "read_group":      return doRead();
         case "send_group":      return doSendText(job.text);
+        case "probe_send":      return doProbeSend(job.text);
         case "send_group_image":return doSendImage(job.image_url);
         default:                return { ok: false, err: "op_not_supported_on_phone: " + job.op };
     }

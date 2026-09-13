@@ -59,7 +59,7 @@ INTERNAL_WAIT_SECONDS = 40      # runner 等结果最长时间
 MAX_SEND_CHARS = 500            # 单条发送字数硬顶
 MAX_IMG_URL_LEN = 512           # 图片地址长度硬顶
 ALLOWED_URL_SCHEMES = ("http://", "https://")
-ALLOW_OPS = ("read_group", "send_group", "send_group_image", "ping", "dump_ui")
+ALLOW_OPS = ("read_group", "send_group", "send_group_image", "ping", "dump_ui", "probe_send")
 # 发送类指令（都要过发送双闸）
 SEND_OPS = ("send_group", "send_group_image")
 # 只许碰这些群（按手机端看到的群标题匹配，子串命中即可，别写太宽）
