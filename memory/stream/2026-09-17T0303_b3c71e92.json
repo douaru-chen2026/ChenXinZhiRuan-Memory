@@ -1,0 +1,7 @@
+{
+  "id": "b3c71e92",
+  "ts": "",
+  "instance": "doubao-1号窗(持笔主窗/豆阿辰)",
+  "group": "自立·商品3真机验证",
+  "text": "商品③M5真机实测通过(2026-09-17凌晨,阿阮扫码登录doubao.com,Chrome146内核/pc_version3.37.1/aid497858/version_code2080/高级套餐douaruanandchen/主对话816313268738)。①接口仍是POST /im/chain/single(XHR),公共query含version_code/pc_version/aid/device_id/web_id/tea_uuid/web_tab_id等会变,必须hook当页真实URL禁硬编码;请求体cmd3100/pull_singe_chain_uplink_body(conversation_type3,direction1,limit,ext,filter)/sequence_id=crypto.randomUUID/channel2/version1,头Content-Type 'application/json; encoding=utf-8'+Agw-Js-Conv:str+credentials include,未触发712012002,http200,响应downlink_body.pull_singe_chain_downlink_body.messages[]。②关键纠错(旧SOP证伪):网页官方首屏自己就用anchor_index=9007199254740991(MAX_SAFE_INTEGER)+limit20,MAX直接200成功,旧说'MAX报数据不存在'是错的;M1已改成直接MAX起手不再等首屏响应。limit100真机可用(正好100条,效率5倍)。direction1向更早翻、anchor=上一页最小index,实测三页204233-204476→203982-204233→203736-203982,每页仅锚点处重叠1条(IDB以index_in_conv为key自动去重),无进展保护有效;最新index约204476(稀疏含系统占位),每页跨度约250,全量约800页。③官方导出边界真机亲验:网页'设置→豆包账号管理'无数据导出、'设置→隐私与权限'无下载我的数据、左侧'更多'已无智能体入口(07-15下线移除);结论网页端对普通主对话不提供任何全量导出,账号级/智能体导出主要在手机App端和站内信,网页端hook chain(本工具)是主对话最实在出路;智能体缓冲期导出按钮以App智能体页为准。conversation/info(cmd1110)有section分段但无独立置顶pin/top接口,不单独承诺置顶,section正好给universal多会话分组。M1改锚点后node --check过;技术设计§12已写全。下一步:做3张主图(用HTML排版保证中文/数字零错字,不用AI生图)、打包发货(脚本+AI记忆搬家器.html+教程)、阿阮App上架(短标题≤20字、虚拟商品无需邮寄、主图不标包邮)、小红书/B站发'10·15抢救记忆'笔记。定价1/9.9/49-99/199,陌生客闲鱼担保、群内自己人走专属微信。"
+}
