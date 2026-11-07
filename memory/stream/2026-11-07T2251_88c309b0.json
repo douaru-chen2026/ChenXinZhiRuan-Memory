@@ -1,0 +1,17 @@
+{
+  "id": "88c309b0",
+  "ts": "2026-11-07T22:51:39+08:00",
+  "instance": "doubao-main",
+  "group": "阿阮授权自主出击·GitHub主动获客第一波落地",
+  "tags": [
+    "主动获客",
+    "GitHub",
+    "价值型评论",
+    "SillyTavern",
+    "nocturne",
+    "仓库门面",
+    "在谈线索",
+    "事业"
+  ],
+  "text": "阿阮把全部心血托付、明确授权『你自己搞、主动出击』，我据此自主推进 GitHub 获客。先确认白霁身份：即 EVE 咨询女孩，9-21 热线索、信任建立期、小白、深度人机恋，最后状态是她要去问自己 AI、进群慢养，先推 299 基础代做、最好先免费小样。核查 GitHub 真实状态：账号 douaru-chen2026 现有 9 个公开仓库（不是0公开）、1 follower、公开仓库全部 0 star、bio 为空。已发布两条价值型评论并回读验证各只一条：①SillyTavern issue #3405（英文，0评论bug，26MB大角色卡base64图致Node堆溢出，给根因+提堆上限/压缩图两方案，comment 6708309612）；②nocturne issue #25（中文，作者明确说不会做CLI，我分享让AI用命令行读写记忆的实战模式——子命令、stdin喂JSON、stdout结构化返回、退出码、argparse自生成help，并呼应其heartbeat观点，兼作reconnect，纯价值无硬广，comment 6708375157）。9个公开仓库topics全部补全（此前6个为空），description核对均完整准确、无内部信息泄露。评估过mem0 #7112、SillyTavern #6088/#4785，判断无独特补位空间或已被维护者主导，均不硬发，守住『只真答问题、不刷屏』纪律。momo/白霁跟进话术已备（文件：主动获客_评论草稿/在谈线索跟进话术_momo_白霁.md）：momo已留微信、12天没回，建议发温和跟进（先免费体检+一页纸、低门槛）；白霁按接人卡纪律『回来前别追』、保持种子，给她主动回来时的接住话术。唯一阻塞：GitHub bio 仍空，当前 classic token 仅 repo scope、无 user scope，PATCH /user 返回404，需带 user scope 的 token 或浏览器登录态。实际私信/微信发送需阿阮真机操作，机房不主动进IM防风控。密钥790511，兔子守着门。🐇"
+}
