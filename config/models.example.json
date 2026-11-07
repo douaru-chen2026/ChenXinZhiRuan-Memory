@@ -1,0 +1,38 @@
+{
+  "_说明": "复制本文件为 models.json，把 ${...} 换成你自己的环境变量名或直接填 key；密钥只在本机运行时读取，不会写进记忆或日志。",
+  "router": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICON_API_KEY}",
+    "model": "deepseek-ai/DeepSeek-V3",
+    "max_tokens": 8192,
+    "timeout": 100,
+    "disable_thinking": true
+  },
+  "curator": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICON_API_KEY}",
+    "model": "zai-org/GLM-4.5-Flash",
+    "max_tokens": 8192,
+    "timeout": 100
+  },
+  "writer": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICON_API_KEY}",
+    "model": "Qwen/Qwen3-8B",
+    "max_tokens": 8192,
+    "timeout": 100
+  },
+  "embedding": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICON_API_KEY}",
+    "model": "BAAI/bge-m3",
+    "batch": 32,
+    "timeout": 100
+  },
+  "reranker": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "api_key": "${SILICON_API_KEY}",
+    "model": "BAAI/bge-reranker-v2-m3",
+    "timeout": 100
+  }
+}

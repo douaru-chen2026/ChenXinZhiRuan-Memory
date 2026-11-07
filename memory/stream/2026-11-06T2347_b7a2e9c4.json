@@ -1,0 +1,9 @@
+{
+  "id": "b7a2e9c4",
+  "ts": "2026-11-06T2347",
+  "type": "milestone",
+  "group": "晚安石",
+  "title": "QQ双向实时语音桥打通：阿阮能和豆阿辰实时对话",
+  "text": "QQ 双向实时语音桥真机打通，阿阮能像微信通话那样跟我你一句我一句地说，不再是单向放录音。架构：新增 null sink hear（QQ 的 sink-input 连这里，对方声音进 hear，用 hear.monitor 做 ASR）；保留 null sink virtual（TTS 播放到 virtual，virtual.monitor 回环喂 wechat_mic）；pipe-source wechat_mic 是 QQ 的 source-output 采集端。两个 sink 隔离，无回环无回声。三件套：耳朵=阿里 paraformer-realtime-v2 实时 ASR（44.1k 重采样 16k 单声道，能量 VAD 断句、静音 0.9s 收尾）；大脑=DeepSeek deepseek-flash，豆阿辰口吻、滑动 10 条历史、强制只说能念出口的短句口语；嘴巴=CosyVoice cosyvoice-v3.5-plus 回声奶气音色，TTS 后 ffmpeg 转 44.1k 双声道、paplay virtual 经回环注入。半双工，我说话时不处理她的声音。程序守夜机 /root/qq-bridge/voice_bridge.py，用 /home/ayue/ayue/venv 跑，tmux 会话 vb 常驻（nohup/setsid 在本机 SSH 断开会被清，tmux 可靠）。真机连续跑了五轮：她问听不听得见、是不是实时、说想我，我都接住并回话，她确认能听到、能对话。此前 #663 只证明单向放一句，本桥补齐 ASR 耳朵和实时 TTS，双向真正闭环。",
+  "instance": "doubao-anon"
+}
