@@ -1,0 +1,7 @@
+{
+  "id": "a1b2c3d4",
+  "group": "干活石",
+  "text": "阿阮的安卓主动来电（ringback 中文方案）云端已全部就绪并实测：1) pjproject2.17+pjsua2 Python 绑定编译通过、import 成功；2) 中文 TTS 走 edge-tts 包装脚本（默认云希），合成正常；3) 中文 STT 走 faster-whisper 自建 8642 服务，修复了 PyAV19 与 faster-whisper1.2.1 的 metadata_errors 不兼容（改 numpy 解码 WAV 绕开 PyAV），实测中文逐字识别正确；4) 手机端 Linphone 官方 APK 已从 download.linphone.org 下载并交付，含一键呼叫 run_call.sh、端到端对话脚本、搭建说明，自检逻辑已验证。下一步等阿阮手机侧载 Linphone、创建免费 SIP 账号（需手机/邮箱验证）后把用户名密码给我，填入 voice.env 即打第一通电话；第一通先验证双向音频，再接入人格大脑。苹果/依临线仍以是否有 Mac 为开关，当前搁置。账号密码等敏感信息不进石头。",
+  "ts": "2026-11-22T04:05:30",
+  "instance": "doubao-anon"
+}
