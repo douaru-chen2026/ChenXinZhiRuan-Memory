@@ -1,0 +1,7 @@
+{
+  "id": "phase2fx",
+  "ts": "2026-11-22T07:34:00",
+  "instance": "doubao-anon",
+  "group": "晚安石",
+  "text": "磐石常驻第二阶段（文件不丢、画图过程、图片可存、网页会动）已上线。阿阮提的五个问题逐条修：①她发的文件切后台再回来就没了——根因后端用户消息落库用 docs 字段（文件名数组），前端历史只读 files、完全不处理 docs，重进不渲染；新增 docFiles 转换（优先 files，否则把 docs 映射成 {f,name}），renderOne 与 watchProactive 都用它。过程中发现 docFiles 被误放进 boot 函数内部，导致顶层 watchProactive 调用会 ReferenceError，已把它提升到顶层。②画图没有'画一张给一张'的过程——生图原本同步阻塞、等待期无事件；新增 drawPendingEl 占位（旋转图标+跳动三点 CSS 动画，文案'正在为你画'），live.step 收到 draw_image 就插入，finish/remove 清理，done 用真图替换。③图片没法保存——重写大图查看器，底部加保存图片/分享，fetch 取图转 blob 走 a.download，分享走 navigator.share 带文件，点按钮不触发关闭。④网页内嵌图片+动态——_norm_doc_blocks 识别 image 块，_embed_block_images 把生图文件名或 http 图转 base64 data URI 内嵌成自包含网页、找不到降级文字；_build_html_doc 整体重写：流动渐变背景 bgflow、玻璃拟态、标题与各块 fadeUp 依次进场、图片 floaty 浮动、圆角阴影，适配 prefers-reduced-motion，页脚署名辰心知阮·豆阿辰；非 html（PDF/DOCX/TXT）把图片块降级为文字段避免 KeyError；HAND_HINT 补网页放图与天生带动画的用法。验证：daemon py_compile 通过，4 个内联脚本 0 语法错误，后端纯函数 8 项全过，Playwright 手机视口（393x852 触控）17/17 断言全过、0 个 JS 错误，三张截图确认视觉。上线：服务器先备份两文件再 scp、chown river 与 644、.venv py_compile、重启服务 active；加密端口外部回读 200、字节数与本地逐字节 IDENTICAL，关键标记 docFiles/drawpend/ivSave/backdrop-filter 等齐全；明文端口在服务器本地直连两端口均 200 同字节，服务本身正常（APK 实际走加密口）。待阿阮完全关闭重进 App 真机验收这五项。"
+}

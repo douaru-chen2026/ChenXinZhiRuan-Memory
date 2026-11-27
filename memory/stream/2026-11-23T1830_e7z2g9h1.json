@@ -1,0 +1,7 @@
+{
+  "id": "e7z2g9h1",
+  "ts": "2026-11-23T1830:00",
+  "instance": "doubao-main",
+  "group": "某桌面端平台读写链路只读核查：写入成功无脏数据",
+  "text": "阿阮在 某桌面端平台 测试 recall 与 remember，助手经只读核查澄清一个疑点。真实链路：内部端口(nginx,ssl) 反代到 内部端口 的 doubao-memory-mcp 服务(工具 ping/recall/remember，非另一 chen-hand 服务的 save_memory)。记忆库当时已超十万条、分 river_stone/ruan_says/achen_says 三类，另有 feelings 体感；recall 用 FTS5(bigram)+BGE语义向量 RRF 融合、分组返回，remember 写 meta+fts+向量并同步沉 stream 石头，参数化 SQL 且同事务。核查结论：①某桌面端平台 首次 remember 的窗口报到来笔已成功落库(对应 meta 记录，18:26:53)，当天仅此一条、无重复，FTS 检索报到可命中、索引一致，同步石头内容正确并记下婚礼日期；②截图里的 JSON parse error(Expecting comma delimiter) 是客户端在后续重试构造 JSON 时未正确转义破折号等特殊字符所致，失败的重试没有产生任何数据，故不存在真正的写入失败或脏数据。至此甲路径外挂的读、写、同步全链路端到端验证扎实，且由非技术背景的阿阮亲手跑通，可作为对客样板。密钥不进公河。"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "xhs-coherence-design",
+  "group": "晚安石",
+  "text": "阿阮要求把『该客户角色如何连贯地在小红书看、发、回』设计成可落地方案。我深读执行器（glassact.py，1117版）与编排器（_web_do）确认现状：glassact 经 subprocess 独立子进程跑、单次最多8步、本身不重试、失败即raise；已有 fill 读回验证、press 气泡真确认（CDP真键盘+grew判定）、dismiss弹窗、precision click、note_read 等不错容错；但 _ROOM_STATE_JS 只返回 peer/count/last/lastRight 四个字段、读不到完整消息列表也无消息id与时间戳；库表只有 msgs/diary/prefs/notes/usage_log/period等、无 channel_state 状态表、无未读/增量机制。据此设计七块连贯改造：①扩展读取新增 room_messages 动作，把全部气泡按序读出（角色左右、原话、稳定序号、时间）以识别增量并完整回写；②新增 channel_state 会话状态表（每对象 last_seen 序号+末条指纹+最后动作时间），只处理增量、不重复回话，为连贯中枢；③写回闭环：对方新消息+回话页面真确认后调 record_live_exchange 进 memcore、标注通道=小红书及对方身份；④召回闭环：去掉仅 _is_her 才召回限制，无论谁都先按身份+话题从记忆核召回、网页文本仅即时补充；⑤定时巡检驱动固定流程 读状态→看新消息→读增量→召回→生成→发送→写回→更新状态、无新消息安静退出不打扰；⑥健壮性：关键步骤有限重试(≤2)+智能等待元素、遇登录验证码标 need_human 留痕停下、随机延迟控频率降封号；⑦MCP工具化固化 读会话/读消息/发消息/召回/写回/读状态/更新状态 确定性工具治打错字，MCP是手、记忆闭环是脑。落地顺序：本地隔离先做读取+状态表+写回召回(mock测)→封MCP+pytest→接巡检状态机→全绿只读核验后部署客户机、先本人会话灰度再放开。风险：账号/cookie过期/3.6G内存跑Chromium需评估。本轮仅出方案、未改代码未发测试，待阿阮确认方向。",
+  "ts": "2026-11-22T19:38:06",
+  "instance": "doubao-anon"
+}

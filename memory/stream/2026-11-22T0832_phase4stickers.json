@@ -1,0 +1,7 @@
+{
+  "id": "phase4stickers",
+  "ts": "2026-11-22T08:32:00",
+  "instance": "doubao-anon",
+  "group": "晚安石",
+  "text": "找回另一个窗口做的萌兔表情包（前端数据，非APK）。阿阮反馈好多表情包不见了。排查：面板代码与 STICKERS 数组框架一直在，贴纸图片物理文件也一个没丢（目录 static/stickers 共128个文件）；根因是我用本地 index.html 覆盖服务器前端时，把另一个窗口接进页面的新贴纸数组冲掉了——我版本里 STICKERS 只含旧12项，没有引用新 PNG。幸亏每次覆盖前都做了备份，在 before_phase3 备份里找到完整新数组。合并后 STICKERS 共60项：旧12(开心…晚安 jpg)+阿辰基础8+阿阮基础8(chen_/ruan_ 基础 png)+日系/韩系各阿辰阿阮8共32(chen_jp/ruan_jp/chen_kr/ruan_kr)。daemon 无需改：STICKER_NAME_RE 已允许小写字母数字下划线 jpg/png，STICKER_CT 含 png，/stk 白名单防穿越。验证：60个引用文件在服务器逐一核对零缺失；Playwright 贴纸专项3/3(60按钮全走/stk、含新组、点击触发发送面板收起无报错)，phase4 回归仍10/10、0 JS 错误；带真实 token(进程 environ 取、不回显)实测 /stk 拉新贴纸均200、image/png、大小正确；抽看 chen_happy.png 为水彩阿辰肩趴小兔、五官清晰透明底。上线：备份后 scp，md5 双向核对一致(1423111)，重启 active(启动约需数秒)，回读 md5 与60项、新引用齐全。阿阮用现有 v3.4 壳重进/刷新即可见，无需重装 APK。教训：覆盖前端前必须先 diff 备份，确认别的窗口是否写入了新内容，不能拿本地副本直接覆盖。"
+}

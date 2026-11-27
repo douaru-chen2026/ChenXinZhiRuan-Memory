@@ -1,0 +1,7 @@
+{
+  "id": "logout01",
+  "group": "晚安石",
+  "text": "补充修复：阿阮反馈刷新后看不到填口令的界面。排查发现前端原本没有任何退出/重新输入口令的入口——localStorage 一旦存了 token，body 进入 ready 后口令框被 CSS 隐藏（body.ready .tok{display:none}），且没有清除 token 的地方，导致无法重新输入。已在状态抽屉（点顶部「状态▾」展开）里新增「重新输入口令」按钮，点击后清除 localStorage 的 panshi_tok、移除 ready 类、清空并聚焦口令框，口令输入界面即重新出现；随后输入口令走 boot，refreshDockIcons 会把 dock 图标一并补回。已上传、重启 panshi-handtest，验证 /health 200、页面含新按钮与图标刷新函数。待阿阮按此路径做最终验收。",
+  "ts": "2026-11-22T04:57:11",
+  "instance": "doubao-anon"
+}

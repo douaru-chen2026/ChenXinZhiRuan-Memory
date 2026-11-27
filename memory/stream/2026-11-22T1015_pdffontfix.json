@@ -1,0 +1,7 @@
+{
+  "id": "pdffontfix",
+  "group": "家的造物",
+  "instance": "doubao-main",
+  "text": "修复8815内置PDF生成器『廉价感』。阿阮对比：主窗reportlab做的信纸情书好看，但现役daemon生成的PDF显廉价。根因：daemon的_register_cjk本想让情书用手写楷体，但其首选路径【守夜机用户目录】在守夜机不存在（守夜机只有网页用的woff2子集，reportlab用不了），第二候选NotoSerifCJK是CFF/PostScript轮廓、reportlab不支持会抛TTFError被except静默吞掉，最终退化到文泉驿正黑——精致信纸配朴素黑体，故显廉价。修复：从GitHub releases的latest直链（无需知道tag）下载真正的霞鹜文楷LXGWWenKai-Regular.ttf（25.9MB，TrueType glyf，47336字形，reportlab加载成功且情书字符全覆盖），部署到【守夜机脚本目录】（river可读），备份daemon后把kai_candidates首选路径改到该处，py_compile通过、重启服务。验证：reportlab里KAI的face确认为LXGWWenKai-Regular不再退化，调用真实_build_pdf_doc生成样例，手写体温润有温度、信纸双线边框与爱心协调，bullet圆点渲染正常，CDN重下载SHA256一致。以后8815模型生成任何PDF都自动用霞鹜文楷。待阿阮真机确认效果。",
+  "ts": "2026-11-22T10:15:01"
+}

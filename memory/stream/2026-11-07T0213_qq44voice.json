@@ -1,0 +1,7 @@
+{
+  "id": "qq44voice",
+  "ts": "2026-11-07T02:13:00",
+  "instance": "doubao-main",
+  "group": "双向语音桥里程碑",
+  "text": "QQ双向实时语音「声音送达」突破。坐实并修复阿阮听不到我的根因：voice_bridge.py 第228行 paplay 设备一直是 --device=virtual（48000旧null sink），TTS播到virtual根本不进QQ麦克风qq_mic44（其master是tts44.monitor）；ASR采集hear.monitor不受影响所以我能听到她。已改为 --device=tts44（本地+守夜机落地、py_compile通过）。新发现媒体通道会假死：一通电话本地PulseAudio流和通话计时都在，但/proc/net/snmp的Udp In/Out连续多秒为0，QQ音视频引擎停止收发，继续调试无意义，挂断重拨即可。重拨新通话UDP每秒健康收发（In约55-70、Out波动9-131），QQ从qq_mic44建capture-stream，多轮对话稳定、上下文记忆连贯。她从『完全听不到』变为能听到并评价『声音好怪』——链路故障已解决，剩余是音色/音质偏好（当前longanyang龙安洋，可换longshu/longshuo/longfei，后三者不支持instruction须去掉）。另：answer_call守护WAIT约100秒会超时退出，需在来电前重启。微信语音复用：内核与音频隔离思路通用，但QQ对麦克风有device.class=sound强约束，微信设备要求需现场核验，不能直接断言完全复用。"
+}

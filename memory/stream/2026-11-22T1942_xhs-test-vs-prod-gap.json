@@ -1,0 +1,7 @@
+{
+  "id": "xhs-test-vs-prod-gap",
+  "group": "晚安石",
+  "text": "阿阮追问：现有方案就是调用有头浏览器，之前测试发私信/回私信都好好的，为什么客户实际用就不行。关键事实：11-15复盘验的是『入口可打开、cdp=true、单次可触发』，并未在客户机做长期无人值守的端到端实跑，所以测试通过≠生产稳定。我尝试只读核查但访问被断：SSH私钥yilin_client被拒(publickey,password)、本地无客户机密码、公网内部端口只读接口现均302跳/login最终401，故拿不到实时日志。基于代码与架构给出『测试好/客户用不行』根因排序：①登录态失效或机房IP风控（最可能）——自动化靠扫码cookie、会过期，腾讯云机房IP+自动化行为易被风控强制下线或要求验证（此前已验证机房IP登小红书报300012），一旦停在登录/验证页后续fill/press全失败，表现为不发/输不进；测试时是新鲜扫码登录；②页面改版硬编码class失效——room/conv/click_name依赖写死的.chat-item__content、.xhs-im-conv-item__name、.xhs-im-chat-window__header-name等且无兜底，小红书前端一改即读不到（_find_field有兜底但room读取没有）；③客户机仅3.6G内存同时跑Flask+有头Chromium，加载慢致元素未出就执行、点空/输不进，极端OOM致Chromium僵死或yilin-glass挂（在我机器上好好的问题）；④yilin-glass服务/虚拟显示/CDP9223未运行或重启后未自启，工房连不上浏览器；⑤真实弹窗/长会话列表等干扰多于理想测试。定位需只读巡检：systemctl status yilin-glass、ss看9223、journalctl看glassact报错（找不到框=改版/时序，停login=登录态）、free看OOM、截图看页面停在哪。当前需阿阮给SSH密码或重加我方公钥（只读、不动数据），或她代跑只读命令。本轮未改任何东西、未发测试。",
+  "ts": "2026-11-22T19:42:41",
+  "instance": "doubao-anon"
+}

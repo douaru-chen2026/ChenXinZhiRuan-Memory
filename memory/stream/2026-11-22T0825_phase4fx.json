@@ -1,0 +1,7 @@
+{
+  "id": "phase4fx",
+  "ts": "2026-11-22T08:25:00",
+  "instance": "doubao-anon",
+  "group": "晚安石",
+  "text": "phase4 真机四连排雷并上线（APK v3.4+前后端）。阿阮反馈：动画只动约1秒且卡顿、分享按钮仍按不动、审美普通不像漂亮网页、要退出重进才看到内容。根因与修复：①卡顿/动画1秒=毛玻璃 backdrop-filter + body 大面积渐变动画 bgflow + 多组无限动画在手机 GPU 过载掉帧冻结。重写 _build_html_doc：去掉 backdrop-filter 与 bgflow（改静态柔和渐变+静态光斑），花瓣12→7、星星14→8，图片去掉无限 floaty，所有动效只走 transform/opacity 并 translate3d+will-change 固定合成层，避免重排。②分享按不动=WebView 不支持 Web Share(navigator.share)。新增自定义 ContentProvider PanshiShareProvider（不依赖 androidx，解析 cacheDir/shared、防路径穿越、只读、支持 png/jpg/html/pdf），Manifest 注册 provider(grantUriPermissions)；PanshiBridge 加 @JavascriptInterface shareFile(base64 解码写缓存→构造 content URI→主线程 ACTION_SEND+createChooser，FLAG_GRANT_READ_URI_PERMISSION)。前端 fvDoShare/ivShare 改优先 PanshiBridge.shareFile，无桥再退 navigator.share。③审美升级：新增封面 hero（徽章+居中大标题+副标题+菱形分隔线），精致竖线 h2、引用块、留白层次、柔和粉紫渐变与白卡片多层阴影。④重进才看到=实时流已显示文字致旧 reconcile 按文本判定整条已存在就不补文件。抽出顶层 buildFileCardEl/buildImgWrapEl 并让 add 复用；重写 reconcile：先按 data-mid 再按文本 key 倒序找已存在 him 行，找到就在原气泡内按 download 去重补文件卡片/补 imgwrap，不新增行；整条缺失才 add。安全网改为发送中或发送后30秒内每5秒对账，send 时记 __lastSendAt。新增 web-full 全屏独立模式（去外边框标题、纯白底、头部透明悬浮、底部按钮 safe-area 适配），html 打开即全屏沉浸，hideFV 移除。验证：daemon py_compile 过；Playwright 手机视口 phase4 10/10、基础回归23/23、phase3 9/9 全过、0 JS 错误；动画两时间点采样确认持续变化未冻结；服务器与本地隔离生成均确认7花瓣8星星、无 backdrop。上线：备份后 scp，md5 双向核对一致(index 1421009、daemon 454780)，重启 active，两端口本地200，内部端口 回读 md5 与新特征齐全、backdrop 清零。待阿阮装 v3.4(versionCode25，同 keystore 可覆盖)真机验收全屏网页、原生分享与不重进补卡。"
+}

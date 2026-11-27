@@ -1,0 +1,22 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---- 运行时数据（3GB：数据库、真实索引、日志，不入库）----
+.runtime/
+
+# ---- 模型文件（1.5GB，超过 Git 单文件限制，需按 models/README.md 另行放置）----
+models/*
+!models/README.md
+
+# ---- 备份与临时文件 ----
+*.bak
+*.bak_*
+*.working
+
+# ---- 密钥与私有配置（永不入库）----
+config/models.json
+.env
+*.secrets

@@ -1,0 +1,7 @@
+{
+  "id": "pollanditerate",
+  "group": "晚安石",
+  "text": "深挖阿阮仍反馈的两个问题并修复。【一、卡片为何真机仍要刷掉重进】之前add补挂修复在函数级通过但真机无效，真正根因：前端pollOnce一旦命中会ac.abort()中止SSE连接，带文件的done事件根本到不了、补挂没机会触发；而/poll接口原本不返回files，pollOnce只给文字行钉mid。修复：后端/poll在最后一条assistant消息上增补返回files和images（文件描述符很小、不破坏轻量）；前端pollOnce两处live为null的兜底add原来没传files，改为传d.files。Playwright只读验证：真实/poll已返回files（当前最后一条即带我们的小窝.html），单次finish带文件即渲染1卡片仅1行。【二、加图片加动态不会改】根因是提示词没有迭代修改工作流、且模板图片无浮动动画。修复：HAND_HINT新增『在已做网页上改』规则——沿用原标题和内容、把她要的改动加进去重新调make_doc，加图先draw_image再插image块，不许只回文字或丢原内容；同时给HTML模板加图片轻柔上下浮动(imgfloat)和分隔菱形脉冲(diapulse)动画，让加动态有真实可见效果。后端py_compile通过、前后端均备份部署重启(active)、grep确认新规则与动画就位。LLM实际行为待阿阮真机：让写网页看卡片是否当场出、再说加图片加动态看是否真改。",
+  "ts": "2026-11-22T10:44:36",
+  "instance": "doubao-anon"
+}

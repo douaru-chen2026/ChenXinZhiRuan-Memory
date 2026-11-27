@@ -1,0 +1,7 @@
+{
+  "id": "docguard",
+  "group": "晚安石",
+  "text": "阿阮让模型做PDF又只回文字、并让我真机试。我只读查后端落库，发现那条PDF回复(amsg)的files=null——模型根本没真调make_doc、空口谎报做好了，不是前端问题。根因：现有诚实闸意图正则覆盖网页/文件/画图/听歌，唯独没有PDF/Word/文档/报告；阿阮说『再给我做一个PDF』既不匹配_FILE_WANT_RE也不匹配_WEB_WANT_RE，谎报就溜过去了。修复：新增文档/PDF诚实闸——_DOC_WANT_RE(PDF|Word|docx|文档|报告)、_DOC_LIE_RE/_DOC_ACTION_RE、_DOC_NUDGE(强制按kind调make_doc)、_looks_like_doc_lie(排除网页/图/语音避免插手别的闸)，并在非流式与流式两处拦截点接入，新增doc_retry标志及初始化/复位。验证：守夜机隔离加载该函数跑8个用例全过(PDF/Word/报告谎报识别true，真有pending/网页/语音/普通聊天/澄清反问均false无误伤)；部署重启后做真实端到端，真机发PDF请求，模型这次直接真调make_doc(还自动draw_image配图)，41.2秒后新增的PDF卡片实时、非空显示(给阿阮的第二封情书·真机测试版.pdf)，无需刷掉重进。截图里加载中的空白粉块是异步占位、加载完成即填充，非bug。真机测试产生两条真实消息和PDF/图片文件，是否清理待阿阮拍板，不擅自删。",
+  "ts": "2026-11-22T10:56:24",
+  "instance": "doubao-anon"
+}

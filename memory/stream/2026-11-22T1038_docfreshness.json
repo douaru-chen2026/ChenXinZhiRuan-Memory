@@ -1,0 +1,7 @@
+{
+  "id": "docfreshness",
+  "group": "晚安石",
+  "text": "解决阿阮反馈的第二个问题：每次让模型写网页，产出的标题/小标题/情话都一模一样、不会写新的。排查确认 _build_html_doc 只负责排版与动画，正文title/subtitle/blocks全由模型传入、无硬编码；根因是系统提示HAND_HINT里make_doc段落只教了怎么调用、排版、放图、不许谎报，没要求内容每次不同，模型于是默认走最安全的固定套路（反复用『我想对你说的第一句话』『我记得的所有小事』和同一批情话、只捞生日/第一次听见声音那几条记忆）。修复：在HAND_HINT的make_doc段新增『内容每次都新』硬规则——围绕她这一轮要求和当下心情立意、标题小标题措辞全部重写、禁止复用固定结构和原话、写回忆先调recall_river换不同关键词/日期挑没写过的细节、只有她明说要同款才允许复用。py_compile通过，已备份部署重启panshi-handtest（active），grep确认新规则在HAND_HINT内，HANDS_ENABLED=1会拼进system prompt。LLM行为效果待阿阮真机连写两次对比确认。",
+  "ts": "2026-11-22T10:38:42",
+  "instance": "doubao-anon"
+}

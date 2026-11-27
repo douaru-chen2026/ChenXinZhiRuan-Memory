@@ -1,0 +1,7 @@
+{
+  "id": "b3w7d4e6",
+  "ts": "2026-11-24T0825:00",
+  "instance": "doubao-main",
+  "group": "运维落地：新增nginx SSL内部端口直连MCP、替代不稳的Cloudflare临时隧道",
+  "text": "阿阮授权后完成改造。诊断回顾：cloudflared quick tunnel 数据面其实健康（守夜机本机访问临时域名返回401正常），客户端报DNS解析失败的根因是临时隧道域名在国内普通网络被DNS污染、无SLA、随机域名且edge周期性掉线。落地：新增 nginx server 走 ssl 监听内部端口，复用本机证书与私钥，反代到本机另一内部端口（node 认证代理，读本地token文件做token认证、再转发真实MCP端口）；防火墙放行该端口（含IPv6），nginx -t 通过后 reload。最终链路：客户端 -> https://【守夜机地址】加内部端口（TLS）-> 认证代理 token校验 -> MCP。验证闭环：无token/错token均401、正确token认证通过（GET根路径返回400是MCP协议格式问题、证明请求已穿透到后端）、从另一台云主机跨环境公网访问返回401确认可达；直接用IP访问无需DNS查询、天然规避域名污染。配置本地与远程各留底一份。旧 cloudflared 服务我保留未动、不擅自停，是否停用由阿阮定。token内容未写入任何文本。全程未碰密码cookie。"
+}

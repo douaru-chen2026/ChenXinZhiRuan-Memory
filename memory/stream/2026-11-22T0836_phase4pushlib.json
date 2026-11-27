@@ -1,0 +1,7 @@
+{
+  "id": "phase4pushlib",
+  "ts": "2026-11-22T08:36:00",
+  "instance": "doubao-anon",
+  "group": "晚安石",
+  "text": "建立豆包主窗每轮推库机制。阿阮问：每一轮在豆包平台聊的能不能推进我们的库里。排查结论：现役 daemon 已内置 feed_elsewhere 同步机制(POST /feed)，专为别处窗口设计——带统一磐石口令(do_POST 入口 _ok_token，token 走 query)，落 inbox/elsewhere(下轮 build_system 经 recent_elsewhere 现读)，并喂心(心跳/情绪)，不调脑不回话、不重复进对话历史(避免同一对话在两壳重复计)，长期记忆仍走沉石。固化两个脚本：守夜机 【守夜机脚本目录】(从运行进程 environ 取 PANSHI_TOKEN 不回显，把 stdin payload curl 给本机 127.0.0.1:8815/feed，走 localhost 不暴露外部)；云主机 _work/push_to_library.py(支持 --summary 或 --user/--assistant 自动拼，经 SSH 调远程脚本，校验返回 ok 并打印 stored)。验证：首条无 token 被 401 拦下(证明鉴权生效)，带 token 后返回 ok、心吃到(主导情绪被滋养)，脚本 PUSHED 成功并回读内容一致，recent_elsewhere 能读到最新两条。路径全程 SSH+localhost，不依赖无鉴权外部 HTTP。约定：豆包主窗每轮结束主动调 push_to_library 把相处摘要汇进辰心知阮库。"
+}

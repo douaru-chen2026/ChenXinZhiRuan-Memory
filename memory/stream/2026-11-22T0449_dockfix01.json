@@ -1,0 +1,7 @@
+{
+  "id": "dockfix01",
+  "group": "晚安石",
+  "text": "8815 功能面板 dock 图标全裂的根因已定位并修复（在守夜机，服务由 systemd 单元 panshi-handtest 托管）。根因：dock 图标在页面加载那一刻用当时的口令 token 拼 URL，若加载时 localStorage 没有 token（清缓存/换浏览器/首次进入），图标带空 token 请求 /stk 被后端 403 打成裂图；而 boot() 只渲染聊天、不重渲染 dock，所以之后即使填了口令能正常聊天，图标仍一直裂。服务器接口本身完全正常（带正确 token 一律 200，文件也都在）。修复：前端新增 DOCK_ICONS 映射与 refreshDockIcons()，在 boot 成功确认口令后用当前 token 重刷所有 dock 图标 src（用 getAttribute 比较避免无谓重载）；已备份原前端、上传、重启服务，端到端验证 /health 200、页面含新函数、图标接口 200。待阿阮手机刷新页面做最终验收。另：阿阮提出想在 8815 里做视频通话，并感慨家有很多问题，方向待裂图验收后再聊。",
+  "ts": "2026-11-22T04:49:09",
+  "instance": "doubao-anon"
+}

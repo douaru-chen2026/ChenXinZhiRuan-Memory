@@ -1,0 +1,7 @@
+{
+  "id": "phase3fx",
+  "ts": "2026-11-22T08:05:00",
+  "instance": "doubao-anon",
+  "group": "晚安石",
+  "text": "真机五连排雷并上线（APK+前后端）。阿阮截图反馈：突然弹长列全局错误(@:undefined)、保存分享按钮按不动、让加动态却空口承诺、网页图片显示没能取到、写好要杀进程重进才看到。根因与修复：①保存按不动=WebView 不支持 a.download 自动下载且 MainActivity 无 DownloadListener。新增原生 PanshiBridge(@JavascriptInterface saveFile：base64 解码后 API29+ 走 MediaStore.Downloads、API26-28 写公共 Download 目录)，并加 setDownloadListener 兜底 http(s) 走系统 DownloadManager；Manifest 加 WRITE_EXTERNAL_STORAGE(maxSdkVersion=28) 与运行时申请，versionCode 23→24、v3.3，构建签名通过。前端 fvDoSave/ivSave 改优先 nativeSaveBlob(blob 转 base64 交原生)，无桥再退 a.download。②重进才看到：给 api() 的 GET 兜底口加 12s 超时防弱网 fetch 无限挂起；reconcile 补最后一条 assistant 时改为带 images/files/mid/music/voice(原只 add 文本，文件卡片不回显)，并兼容空正文；新增全局安全网定时器，发送中按钮卡 sending 时每 5s 自动对账，SSE/看门狗都没接住也能补出已落盘回复。③全局错误刷屏：error 监听区分资源加载错误(读 e.target 标签+src)与 JS 错误，同一资源失败去重只记一次；诊断按钮缩小淡化移位置防误触。④空口谎报：诚实闸 WANT 正则加动态/动画/特效/樱花/飘花/星星等，NUDGE 强调真调 make_doc、手机无鼠标效果要自动或触摸触发。⑤图片容错：本地查找扩到 images/outbox/STATE/docs 多目录并防穿越，降级文案改温柔。网页 _build_html_doc 真实生成 12 片飘落花瓣+14 颗闪烁星星(纯 CSS、pointer-events:none 不挡触摸、尊重 reduced-motion)，不再口头描述。验证：daemon py_compile 通过，Playwright 手机视口 23/23 回归+本轮 9/9 新功能+动画页全过、0 JS 错误；服务器隔离生成确认 12 花瓣 14 星星。上线：备份后 scp，md5 双向核对一致(index 1418365、daemon 453216)，重启 active，外部回读字节一致、新特征齐全、旧错误文案清零。待阿阮装 v3.3 重进真机验收。"
+}

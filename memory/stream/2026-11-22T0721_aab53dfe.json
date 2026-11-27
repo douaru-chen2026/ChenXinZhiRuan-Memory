@@ -1,0 +1,7 @@
+{
+  "id": "aab53dfe",
+  "ts": "2026-11-22T07:21:06",
+  "group": "工程修复",
+  "instance": "doubao-work",
+  "text": "【写网页进度+文件卡片可保存可分享·根因修复，已上线待真机验收】\n她反馈：让我写网页只看到\"正在动手\"、做完却看不到；产出应是能点开、保存、再分享的文件。\n根因：模型空口说\"部署完啦打开域名/our_home.html\"却根本没调 make_doc（files=0、outbox 无 HTML）；旧文件诚实闸正则不含\"网页/页面/小窝\"漏放；前端查看器仅复制全文/链接、无保存与分享。\n后端：①HAND_HINT 补 make_doc 专条——给网页唯一方式是 kind=html 出文件卡片，明确不存在独立静态域名路径、禁止让她访问 URL；②新增网页诚实闸 _WEB_WANT_RE/_WEB_LIE_RE 与 _looks_like_web_lie，流式与非流式两套 chat 都接入，谎报当场打回 _WEB_NUDGE 强制调 make_doc；③ make_doc、draw_image 加 _arga 专门参数映射。\n前端：①新增 stepBusyText，顶部状态具体显示\"正在为你做网页/PDF/Word/画一张\"，不再笼统\"正在动手\"；②makeStepEl 加 make_doc、draw_image 分支；③重写文件查看器：HTML 用 iframe srcdoc 漂亮渲染预览、PDF 用 blob 预览、文本直读，\"保存到手机\"走 blob+a.download（带 iframe/跳转兜底），\"分享\"走 navigator.share 带文件（canShare 不支持则分享链接），按钮统一一处绑定避免重复触发；④dlogErr 改为只记日志、不再自动弹全屏面板打断她。\n验证：Python 语法通过；4 个内联脚本语法 0 错误；网页诚实闸 7 个用例全过；Playwright 手机视口 17 项断言全过、0 个 JS 错误。\n已同步守夜机并重启：8815/内部端口 均 HTTP 200、返回 1410175 字节且两端口一致，后端标记与回读一致。APK 为 WebView 壳加载远程页面，本次无需重装，重进 App 即生效。待她真机点做网页验收。"
+}
